@@ -13,6 +13,7 @@ from src.tailor import DocumentTailor
 import src.config as config
 
 STATE_FILE = Path("data/state.json")
+GITHUB_REPO = os.environ.get("GITHUB_REPOSITORY", "Pokedash01/CareerOps-AI")
 
 def load_state() -> dict:
     if STATE_FILE.exists():
@@ -26,12 +27,15 @@ def save_state(state: dict):
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
+def github_raw_link(local_path: Path) -> str:
+    clean = str(local_path).replace(os.sep, "/").lstrip("./")
+    return f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/{clean}"
+
 def extract_pdf_text(pdf_path: Path) -> str:
     try:
         reader = PdfReader(pdf_path)
         return "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
-    except Exception as e:
-        print(f"[PDF] Extraction error: {e}")
+    except Exception:
         return ""
 
 def process_telegram_inbox(bot: TelegramSaaSClient, state: dict):
@@ -55,12 +59,12 @@ def process_telegram_inbox(bot: TelegramSaaSClient, state: dict):
                     user_dir.mkdir(parents=True, exist_ok=True)
                     (user_dir / "resume.pdf").write_bytes(content)
                     
-                    # Force clean profile regeneration on new upload
-                    cached_profile = Path(f"data/users/{chat_id}/profile.json")
-                    if cached_profile.exists(): 
-                        cached_profile.unlink()
+                    # Wipe profile cache so new PDF forces full re-extraction
+                    cached = Path(f"data/users/{chat_id}/profile.json")
+                    if cached.exists():
+                        cached.unlink()
                         
-                    bot.send_message(chat_id, "✅ Resume processed. CareerOps is analyzing your background and matching roles.")
+                    bot.send_message(chat_id, "✅ Resume received. Matching roles against your experience.")
     except Exception as e:
         print(f"[Telegram Inbox] Error: {e}")
 
@@ -74,23 +78,23 @@ def run_match_pipeline(bot: TelegramSaaSClient, state: dict):
     tailor = DocumentTailor()
 
     for user_dir in users_root.iterdir():
-        if not user_dir.is_dir(): 
+        if not user_dir.is_dir():
             continue
         chat_id = user_dir.name
         pdf_file = user_dir / "inputs" / "resume.pdf"
-        if not pdf_file.exists(): 
+        if not pdf_file.exists():
             continue
 
         resume_text = extract_pdf_text(pdf_file)
-        if not resume_text: 
+        if not resume_text:
             continue
 
-        # Dynamic extraction from user's actual document
         profile = extract_user_profile(chat_id, resume_text)
-        print(f"\n[Pipeline] Active Candidate: {profile.get('full_name')} ({profile.get('total_years_experience')} yrs exp)")
+        cand_name = profile.get("full_name", "Candidate")
+        first_name = cand_name.split()[0]
 
         jobs = searcher.fetch_jobs(profile)
-        print(f"[Pipeline] Evaluating {len(jobs)} candidate listings for {profile.get('full_name')}...")
+        print(f"[Pipeline] Evaluating {len(jobs)} candidate listings for {cand_name}...")
 
         for idx, job in enumerate(jobs, 1):
             raw_id = job.get("job_id") or job.get("apply_link")
@@ -103,16 +107,13 @@ def run_match_pipeline(bot: TelegramSaaSClient, state: dict):
             company = job.get("company_name", "Enterprise")
             desc = job.get("description", "")
 
-            # Dynamic fit check against candidate profile
             fit = matcher.evaluate_fit(profile, title, desc)
             score = fit.get("match_score", 0)
             viable = fit.get("is_viable", False)
 
-            print(f"[{idx}/{len(jobs)}] '{title}' @ '{company}' -> Viable: {viable} | Score: {score}")
+            print(f"[{idx}/{len(jobs)}] '{title}' @ '{company}' -> Viable: {viable} | Score: {score}%")
 
             if viable and score >= config.MIN_MATCH_SCORE:
-                print(f"🎯 MATCH CONFIRMED ({score}%). Compiling tailored PDFs...")
-                
                 bullets = tailor.generate_adapted_bullets(profile, title, company, desc)
                 out_dir = user_dir / "outputs" / safe_id
                 out_dir.mkdir(parents=True, exist_ok=True)
@@ -120,29 +121,42 @@ def run_match_pipeline(bot: TelegramSaaSClient, state: dict):
                 pdf_resume = out_dir / f"Resume_{company}_{safe_id}.pdf"
                 pdf_cl = out_dir / f"CoverLetter_{company}_{safe_id}.pdf"
 
-                # 100% dynamic rendering from user's extracted profile
-                tailor.build_pdf_resume(str(pdf_resume), profile, bullets)
+                tailor.build_pdf_resume(str(pdf_resume), profile)
                 tailor.build_pdf_cover_letter(str(pdf_cl), title, company, profile, bullets)
 
-                # Send Notification Card
-                card = (
-                    f"🎯 *HIGH-FIT OPPORTUNITY IDENTIFIED*\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"💼 *Role:* {title}\n"
-                    f"🏢 *Company:* {company}\n"
-                    f"📍 *Location:* {job.get('location', 'Remote / India')}\n"
-                    f"⏳ *Exp. Detected:* {fit.get('detected_experience', '2-4 Years')}\n"
-                    f"💰 *Est. CTC:* {fit.get('salary_est', 'Market Rate')}\n"
-                    f"📊 *ATS Score:* `{score}%`\n"
-                    f"⚠️ *Skill Gaps:* {fit.get('skills_gap', 'None detected')}\n\n"
-                    f"💡 *Match Insight:*\n_{fit.get('match_reason', '')}_\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🔗 [Apply Directly on Portal]({job.get('apply_link')})"
-                )
-                bot.send_message(chat_id, card)
+                resume_url = github_raw_link(pdf_resume)
+                cl_url = github_raw_link(pdf_cl)
+                exp_req = fit.get("detected_experience", "2–5 Years / Unspecified")
+                sal_range = fit.get("salary_range", "₹12 - ₹18 LPA (Est.)")
+                gaps = fit.get("skills_gap", "None")
 
-                # Send Tailored PDFs
-                bot.deliver_assets(chat_id, title, company, str(pdf_resume), str(pdf_cl))
+                # Exact single-message card matching target template
+                msg = (
+                    f"🎯 <b>New High-Fit Role Matched for {first_name}!</b>\n\n"
+                    f"📌 <b>Role:</b> {title}\n"
+                    f"🏢 <b>Company:</b> {company}\n"
+                    f"📍 <b>Location:</b> {job.get('location', 'Remote')}\n"
+                    f"⏳ <b>Experience Required:</b> {exp_req}\n"
+                    f"💰 <b>Salary Range:</b> {sal_range}\n"
+                    f"📊 <b>Fit Score:</b> {score}%\n"
+                    f"⚠️ <b>Skill Gap:</b> {gaps}\n\n"
+                    f"🔗 <a href='{job.get('apply_link')}'><b>Apply Directly on Portal</b></a>\n"
+                    f"📄 <a href='{resume_url}'><b>Download Resume PDF</b></a>\n"
+                    f"📝 <a href='{cl_url}'><b>Download Cover Letter PDF</b></a>\n\n"
+                    f"<i>Links go live within ~1 min once pushed to repo.</i>"
+                )
+
+                # Send ONLY ONE message with link preview disabled
+                requests.post(
+                    f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage",
+                    json={
+                        "chat_id": chat_id,
+                        "text": msg,
+                        "parse_mode": "HTML",
+                        "disable_web_page_preview": True
+                    },
+                    timeout=10
+                )
 
             state["seen_jobs"].append(safe_id)
 

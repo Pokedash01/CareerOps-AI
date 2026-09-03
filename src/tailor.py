@@ -1,5 +1,3 @@
-import os
-import re
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -7,41 +5,42 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable,
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from src.llm_gateway import LLMGateway
 
+def sanitize_pdf_text(text: str) -> str:
+    if not text:
+        return ""
+    replacements = {
+        "’": "'", "‘": "'", "“": '"', "”": '"',
+        "—": "-", "–": "-", "•": "*", "…": "...",
+        "\u00a0": " ", "&": "&amp;"
+    }
+    for k, v in replacements.items():
+        text = text.replace(k, v)
+    return text
+
 class DocumentTailor:
     def __init__(self):
         self.gateway = LLMGateway()
 
     def generate_adapted_bullets(self, profile: dict, job_title: str, company: str, job_desc: str) -> dict:
         sys_prompt = """
-        You are an elite ATS resume optimizer. 
-        Adapt the candidate's existing experience bullets to highlight keywords from the target JD.
-        CRITICAL RULES:
-        1. Keep the exact companies, titles, and dates provided by the candidate.
-        2. Never fabricate companies, credentials, metrics, or factual claims.
-        3. Return JSON containing adapted bullets mapped by company index, and tailored cover letter paragraphs:
+        Write a concise, 4-paragraph professional cover letter based on the candidate's actual experience.
+        Return JSON:
         {
-            "adapted_experience": [
-                {
-                    "company": "Company Name",
-                    "bullets": ["Adapted bullet 1", "Adapted bullet 2"]
-                }
-            ],
             "cover_letter_paragraphs": [
-                "Targeted opening demonstrating alignment with company and role.",
-                "Primary experience alignment paragraph connecting candidate skills to JD.",
-                "Secondary experience / impact paragraph highlighting delivery and metrics.",
-                "Professional closing expressing enthusiasm and availability."
+                "Opening paragraph addressing the specific role and company.",
+                "Core experience achievement paragraph with actual metrics.",
+                "Secondary skills alignment paragraph.",
+                "Professional closing reiterating value and availability."
             ]
         }
         """
-        prompt = (
-            f"Candidate Work Experience:\n{profile.get('experience', [])}\n\n"
-            f"Target Role: {job_title} at {company}\n"
-            f"Target JD:\n{job_desc[:2500]}"
-        )
-        return self.gateway.generate(prompt=prompt, system_prompt=sys_prompt, temperature=0.2)
+        prompt = f"Candidate Profile: {profile}\nTarget Role: {job_title} at {company}\nJD: {job_desc[:2000]}"
+        try:
+            return self.gateway.generate(prompt=prompt, system_prompt=sys_prompt, temperature=0.2)
+        except Exception:
+            return {"cover_letter_paragraphs": ["I am writing to express my interest in this position."]}
 
-    def build_pdf_resume(self, filepath: str, profile: dict, bullets_kit: dict):
+    def build_pdf_resume(self, filepath: str, profile: dict):
         doc = SimpleDocTemplate(filepath, pagesize=letter, leftMargin=28, rightMargin=28, topMargin=22, bottomMargin=22)
         story = []
 
@@ -50,113 +49,51 @@ class DocumentTailor:
         MUTED_GRAY = colors.HexColor("#4A5568")
         BORDER_GRAY = colors.HexColor("#CBD5E1")
 
-        name_style = ParagraphStyle('HeaderName', fontSize=13, leading=15, fontName='Helvetica-Bold', textColor=DARK_NAVY)
-        contact_style = ParagraphStyle('HeaderContact', fontSize=7.5, leading=10.5, fontName='Helvetica', textColor=MUTED_GRAY, alignment=2)
-        section_head_style = ParagraphStyle('SectionHead', fontSize=9, leading=11, fontName='Helvetica-Bold', textColor=DARK_NAVY, spaceBefore=4, spaceAfter=1)
-        left_bold_style = ParagraphStyle('LeftBold', fontSize=8, leading=10.5, fontName='Helvetica-Bold', textColor=TEXT_CHARCOAL)
-        right_date_style = ParagraphStyle('RightDate', fontSize=8, leading=10.5, fontName='Helvetica-Bold', textColor=MUTED_GRAY, alignment=2)
-        body_style = ParagraphStyle('BodyText', fontSize=7.8, leading=10, fontName='Helvetica', textColor=TEXT_CHARCOAL)
-        role_desc_style = ParagraphStyle('RoleDesc', fontSize=7.8, leading=9.8, fontName='Helvetica-Oblique', textColor=TEXT_CHARCOAL, spaceAfter=1)
-        subhead_style = ParagraphStyle('SubCategoryHead', fontSize=8, leading=10, fontName='Helvetica-Bold', textColor=DARK_NAVY, spaceBefore=2, spaceAfter=1)
-        bullet_style = ParagraphStyle('CompactBullet', fontSize=7.5, leading=9.5, fontName='Helvetica', textColor=TEXT_CHARCOAL, leftIndent=8, spaceAfter=1)
-        grid_cell_style = ParagraphStyle('GridCell', fontSize=7.8, leading=10, fontName='Helvetica', textColor=TEXT_CHARCOAL)
+        name_style = ParagraphStyle('HN', fontSize=13, leading=15, fontName='Helvetica-Bold', textColor=DARK_NAVY)
+        contact_style = ParagraphStyle('HC', fontSize=7.5, leading=10.5, fontName='Helvetica', textColor=MUTED_GRAY, alignment=2)
+        sec_style = ParagraphStyle('SH', fontSize=9, leading=11, fontName='Helvetica-Bold', textColor=DARK_NAVY, spaceBefore=4, spaceAfter=1)
+        bold_style = ParagraphStyle('LB', fontSize=8, leading=10.5, fontName='Helvetica-Bold', textColor=TEXT_CHARCOAL)
+        date_style = ParagraphStyle('RD', fontSize=8, leading=10.5, fontName='Helvetica-Bold', textColor=MUTED_GRAY, alignment=2)
+        body_style = ParagraphStyle('BT', fontSize=7.8, leading=10, fontName='Helvetica', textColor=TEXT_CHARCOAL)
+        bullet_style = ParagraphStyle('CB', fontSize=7.5, leading=9.5, fontName='Helvetica', textColor=TEXT_CHARCOAL, leftIndent=8, spaceAfter=1)
+        grid_style = ParagraphStyle('GC', fontSize=7.8, leading=10, fontName='Helvetica', textColor=TEXT_CHARCOAL)
 
-        # 1. Dynamic Contact Header
-        full_name = profile.get("full_name", "Candidate Name").upper()
+        # Header
+        name = sanitize_pdf_text(profile.get("full_name", "Candidate Name")).upper()
         contact = profile.get("contact", {})
-        contact_str = f"{contact.get('email', '')} | {contact.get('phone', '')} | {contact.get('location', '')} | {contact.get('links', '')}"
-
-        header_table = Table([
-            [Paragraph(full_name, name_style), Paragraph(contact_str, contact_style)]
-        ], colWidths=[200, 356])
-        header_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0)]))
-        story.append(header_table)
+        c_line = sanitize_pdf_text(f"{contact.get('email', '')} | {contact.get('phone', '')} | {contact.get('location', '')}")
+        story.append(Table([[Paragraph(name, name_style), Paragraph(c_line, contact_style)]], colWidths=[200, 356]))
         story.append(HRFlowable(width="100%", thickness=1, color=DARK_NAVY, spaceBefore=2, spaceAfter=4))
 
-        # 2. Dynamic Education
-        education = profile.get("education", [])
-        if education:
-            story.append(Paragraph("EDUCATION", section_head_style))
-            for edu in education:
-                edu_text = f"<b>{edu.get('institution', '')}</b> | {edu.get('degree', '')} | <b>{edu.get('details', '')}</b>"
-                edu_table = Table([[Paragraph(edu_text, body_style), Paragraph(edu.get('dates', ''), right_date_style)]], colWidths=[460, 96])
-                edu_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0)]))
-                story.append(edu_table)
+        # Education
+        story.append(Paragraph("EDUCATION", sec_style))
+        for edu in profile.get("education", []):
+            edu_str = sanitize_pdf_text(f"<b>{edu.get('institution', '')}</b> | {edu.get('degree', '')} | <b>{edu.get('details', '')}</b>")
+            story.append(Table([[Paragraph(edu_str, body_style), Paragraph(edu.get('dates', ''), date_style)]], colWidths=[460, 96]))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER_GRAY, spaceBefore=2, spaceAfter=3))
+
+        # Work Experience
+        story.append(Table([[Paragraph("WORK EXPERIENCE", sec_style), Paragraph(f"{profile.get('total_years_experience', '')} Years Experience", date_style)]], colWidths=[430, 126]))
+        for exp in profile.get("experience", []):
+            exp_title = sanitize_pdf_text(f"<b>{exp.get('company', '')}</b> | {exp.get('role', '')} | {exp.get('location', '')}")
+            story.append(Table([[Paragraph(exp_title, bold_style), Paragraph(exp.get('dates', ''), date_style)]], colWidths=[440, 116]))
+            for b in exp.get("bullets", []):
+                story.append(Paragraph(f"• {sanitize_pdf_text(b)}", bullet_style))
             story.append(Spacer(1, 2))
-            story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER_GRAY, spaceBefore=1, spaceAfter=3))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER_GRAY, spaceBefore=1, spaceAfter=3))
 
-        # 3. Dynamic Work Experience
-        cand_exp = profile.get("experience", [])
-        adapted_exp_map = {item.get("company", "").lower(): item.get("bullets", []) for item in bullets_kit.get("adapted_experience", [])}
-
-        if cand_exp:
-            exp_header = Table([[
-                Paragraph("WORK EXPERIENCE", section_head_style),
-                Paragraph(f"{profile.get('total_years_experience', '')} Years Experience", right_date_style)
-            ]], colWidths=[430, 126])
-            exp_header.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'BOTTOM'), ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0)]))
-            story.append(exp_header)
-
-            for exp in cand_exp:
-                comp = exp.get("company", "")
-                role = exp.get("role", "")
-                loc = exp.get("location", "")
-                dates = exp.get("dates", "")
-                summary = exp.get("summary", "")
-
-                title_table = Table([[
-                    Paragraph(f"<b>{comp}</b> | {role} | {loc}", left_bold_style),
-                    Paragraph(dates, right_date_style)
-                ]], colWidths=[440, 116])
-                title_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0)]))
-                story.append(title_table)
-
-                if summary:
-                    story.append(Paragraph(summary, role_desc_style))
-
-                bullets = adapted_exp_map.get(comp.lower(), exp.get("bullets", []))
-                for b in bullets:
-                    story.append(Paragraph(f"• {b}", bullet_style))
-                story.append(Spacer(1, 2))
-
-            story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER_GRAY, spaceBefore=1, spaceAfter=3))
-
-        # 4. Dynamic Skills Grid
+        # Skills
         skills = profile.get("skills", [])
         if skills:
-            story.append(Paragraph("SKILLS", section_head_style))
-            # Format skills into dynamic 4-column rows
+            story.append(Paragraph("SKILLS", sec_style))
             chunks = [skills[i:i + 4] for i in range(0, len(skills), 4)]
-            skills_table_data = []
+            table_data = []
             for chunk in chunks:
-                row = []
-                for idx, skill in enumerate(chunk):
-                    prefix = "| " if idx > 0 else ""
-                    row.append(Paragraph(f"{prefix}{skill}", grid_cell_style))
+                row = [Paragraph(f"{'| ' if idx > 0 else ''}{sanitize_pdf_text(s)}", grid_style) for idx, s in enumerate(chunk)]
                 while len(row) < 4:
-                    row.append(Paragraph("", grid_cell_style))
-                skills_table_data.append(row)
-
-            skills_table = Table(skills_table_data, colWidths=[135, 145, 135, 141])
-            skills_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0)]))
-            story.append(skills_table)
-            story.append(Spacer(1, 2))
-            story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER_GRAY, spaceBefore=1, spaceAfter=3))
-
-        # 5. Dynamic Certifications Grid
-        certs = profile.get("certifications", [])
-        if certs:
-            story.append(Paragraph("CERTIFICATIONS", section_head_style))
-            cert_chunks = [certs[i:i + 2] for i in range(0, len(certs), 2)]
-            cert_table_data = []
-            for chunk in cert_chunks:
-                row = [Paragraph(chunk[0], grid_cell_style)]
-                row.append(Paragraph(f"| {chunk[1]}" if len(chunk) > 1 else "", grid_cell_style))
-                cert_table_data.append(row)
-
-            certs_table = Table(cert_table_data, colWidths=[280, 276])
-            certs_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0)]))
-            story.append(certs_table)
+                    row.append(Paragraph("", grid_style))
+                table_data.append(row)
+            story.append(Table(table_data, colWidths=[135, 145, 135, 141]))
 
         doc.build(story)
 
@@ -164,28 +101,24 @@ class DocumentTailor:
         doc = SimpleDocTemplate(filepath, pagesize=letter, leftMargin=40, rightMargin=40, topMargin=35, bottomMargin=35)
         story = []
         NAVY = colors.HexColor("#0B2540")
-        body_style = ParagraphStyle('CLBody', fontSize=9, leading=13.5, fontName='Helvetica', textColor=colors.HexColor("#1E293B"), spaceBefore=5)
-        header_style = ParagraphStyle('CLHead', fontSize=14, leading=16, fontName='Helvetica-Bold', textColor=NAVY)
-        sub_style = ParagraphStyle('CLSub', fontSize=8.5, leading=11, fontName='Helvetica', textColor=colors.HexColor("#475569"))
-        subj_style = ParagraphStyle('CLSubj', fontSize=9.5, leading=12, fontName='Helvetica-Bold', textColor=NAVY, spaceBefore=4, spaceAfter=4)
+        body_style = ParagraphStyle('CLB', fontSize=9, leading=13.5, fontName='Helvetica', textColor=colors.HexColor("#1E293B"), spaceBefore=5)
+        head_style = ParagraphStyle('CLH', fontSize=14, leading=16, fontName='Helvetica-Bold', textColor=NAVY)
+        sub_style = ParagraphStyle('CLS', fontSize=8.5, leading=11, fontName='Helvetica', textColor=colors.HexColor("#475569"))
+        subj_style = ParagraphStyle('CLJ', fontSize=9.5, leading=12, fontName='Helvetica-Bold', textColor=NAVY, spaceBefore=4, spaceAfter=4)
 
-        full_name = profile.get("full_name", "Candidate Name")
+        name = sanitize_pdf_text(profile.get("full_name", "Candidate")).upper()
         contact = profile.get("contact", {})
-        contact_str = f"{contact.get('email', '')} | {contact.get('phone', '')} | {contact.get('location', '')}"
-
-        story.append(Paragraph(full_name.upper(), header_style))
-        story.append(Paragraph(contact_str, sub_style))
-        story.append(Spacer(1, 3))
-        story.append(HRFlowable(width="100%", thickness=1, color=NAVY, spaceAfter=6))
+        story.append(Paragraph(name, head_style))
+        story.append(Paragraph(sanitize_pdf_text(f"{contact.get('email', '')} | {contact.get('phone', '')} | {contact.get('location', '')}"), sub_style))
+        story.append(HRFlowable(width="100%", thickness=1, color=NAVY, spaceBefore=3, spaceAfter=6))
         story.append(Paragraph(f"<b>Date:</b> {datetime.now().strftime('%B %d, %Y')}", body_style))
-        story.append(Paragraph(f"<b>Target Role:</b> {title} | <b>Company:</b> {company}", body_style))
-        story.append(Spacer(1, 4))
-        story.append(Paragraph(f"Subject: Application for {title} - {full_name}", subj_style))
+        story.append(Paragraph(f"<b>Target Role:</b> {sanitize_pdf_text(title)} | <b>Company:</b> {sanitize_pdf_text(company)}", body_style))
+        story.append(Paragraph(f"Subject: Application for {sanitize_pdf_text(title)} - {name}", subj_style))
         story.append(Paragraph("Dear Hiring Team,", body_style))
 
         for p in bullets_kit.get("cover_letter_paragraphs", []):
-            story.append(Paragraph(p, body_style))
+            story.append(Paragraph(sanitize_pdf_text(p), body_style))
 
         story.append(Spacer(1, 6))
-        story.append(Paragraph(f"Warm regards,<br/><b>{full_name}</b>", body_style))
+        story.append(Paragraph(f"Warm regards,<br/><b>{name}</b>", body_style))
         doc.build(story)
