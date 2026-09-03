@@ -3,22 +3,54 @@ from pathlib import Path
 from src.llm_gateway import LLMGateway
 
 SYSTEM_PROMPT = """
-You are an executive talent intelligence headhunter. Parse the provided resume text.
-Extract years of experience, core competencies, and identify realistic career pivot roles.
-Return strict JSON matching this schema:
+You are an executive talent intelligence parser. Analyze the resume text and convert it into a complete, structured JSON profile.
+Extract actual candidate information without fabricating any details.
+
+Output strict JSON matching this exact schema:
 {
-    "total_years_experience": 4.5,
-    "core_competencies": ["Tool A", "Skill B"],
-    "pivot_trajectories": ["Role A", "Role B"],
-    "seniority_ceiling": "Mid-Level",
-    "anti_targets": ["Cold Sales", "Customer Support"]
+    "full_name": "Candidate Full Name",
+    "contact": {
+        "email": "email@domain.com",
+        "phone": "+1234567890",
+        "location": "City, Country",
+        "links": "Portfolio / LinkedIn links"
+    },
+    "total_years_experience": 3.5,
+    "education": [
+        {
+            "institution": "University / College Name",
+            "degree": "Degree and Major",
+            "details": "GPA / Honors / Key Coursework",
+            "dates": "Start - End Date"
+        }
+    ],
+    "experience": [
+        {
+            "company": "Company Name",
+            "role": "Job Title",
+            "location": "City, Country",
+            "dates": "Start - End Date",
+            "summary": "High level scope/responsibility",
+            "bullets": [
+                "Key achievement with exact metrics",
+                "Project or deliverable detail"
+            ]
+        }
+    ],
+    "skills": ["Skill 1", "Skill 2", "Skill 3", "Skill 4"],
+    "certifications": ["Certification 1", "Certification 2"],
+    "target_roles": ["Role 1", "Role 2", "Role 3"],
+    "anti_targets": ["Excluded domain 1", "Excluded domain 2"]
 }
 """
 
 def extract_user_profile(user_id: str, raw_text: str) -> dict:
     profile_path = Path(f"data/users/{user_id}/profile.json")
     if profile_path.exists():
-        return json.loads(profile_path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(profile_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
 
     gateway = LLMGateway()
     profile = gateway.generate(prompt=raw_text, system_prompt=SYSTEM_PROMPT)

@@ -29,17 +29,14 @@ def save_state(state: dict):
 def extract_pdf_text(pdf_path: Path) -> str:
     try:
         reader = PdfReader(pdf_path)
-        text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
-        print(f"[PDF] Extracted {len(text)} characters from {pdf_path.name}")
-        return text
+        return "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
     except Exception as e:
-        print(f"[PDF] Extraction failed for {pdf_path}: {e}")
+        print(f"[PDF] Extraction error: {e}")
         return ""
 
 def process_telegram_inbox(bot: TelegramSaaSClient, state: dict):
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/getUpdates"
     params = {"timeout": 10, "offset": state.get("telegram_offset")}
-    
     try:
         res = requests.get(url, params=params).json()
         for item in res.get("result", []):
@@ -58,27 +55,18 @@ def process_telegram_inbox(bot: TelegramSaaSClient, state: dict):
                     user_dir.mkdir(parents=True, exist_ok=True)
                     (user_dir / "resume.pdf").write_bytes(content)
                     
+                    # Force clean profile regeneration on new upload
                     cached_profile = Path(f"data/users/{chat_id}/profile.json")
-                    if cached_profile.exists():
+                    if cached_profile.exists(): 
                         cached_profile.unlink()
                         
-                    bot.send_message(chat_id, "✅ *Resume received and indexed!* CareerOps is actively matching you with roles.")
-                    print(f"[Telegram] Saved new resume for user {chat_id}")
-                else:
-                    bot.send_message(chat_id, "⚠️ Please upload your resume as a standard *.PDF* document.")
-            
-            elif "text" in msg:
-                bot.send_message(
-                    chat_id, 
-                    "👋 *Welcome to CareerOps AI!*\n\nPlease upload your *Resume (as a PDF)* directly in this chat to begin automated matching."
-                )
+                    bot.send_message(chat_id, "✅ Resume processed. CareerOps is analyzing your background and matching roles.")
     except Exception as e:
-        print(f"[Telegram Inbox] Update polling failed: {e}")
+        print(f"[Telegram Inbox] Error: {e}")
 
 def run_match_pipeline(bot: TelegramSaaSClient, state: dict):
     users_root = Path("data/users")
     if not users_root.exists():
-        print("[Pipeline] No user directory found.")
         return
 
     searcher = JobSearchEngine()
@@ -86,76 +74,81 @@ def run_match_pipeline(bot: TelegramSaaSClient, state: dict):
     tailor = DocumentTailor()
 
     for user_dir in users_root.iterdir():
-        if not user_dir.is_dir():
+        if not user_dir.is_dir(): 
             continue
         chat_id = user_dir.name
         pdf_file = user_dir / "inputs" / "resume.pdf"
-        if not pdf_file.exists():
+        if not pdf_file.exists(): 
             continue
 
-        print(f"\n--- Processing Candidate {chat_id} ---")
         resume_text = extract_pdf_text(pdf_file)
-        if not resume_text:
+        if not resume_text: 
             continue
 
+        # Dynamic extraction from user's actual document
         profile = extract_user_profile(chat_id, resume_text)
-        print(f"[Profile] Experience: {profile.get('total_years_experience')} yrs | Pivots: {profile.get('pivot_trajectories')}")
-        
+        print(f"\n[Pipeline] Active Candidate: {profile.get('full_name')} ({profile.get('total_years_experience')} yrs exp)")
+
         jobs = searcher.fetch_jobs(profile)
-        print(f"[Job Search] Found {len(jobs)} total jobs to evaluate across all queries.")
+        print(f"[Pipeline] Evaluating {len(jobs)} candidate listings for {profile.get('full_name')}...")
 
-        matched_count = 0
         for idx, job in enumerate(jobs, 1):
-            raw_id = job.get("job_id") or f"{job.get('title')}_{job.get('company_name')}"
+            raw_id = job.get("job_id") or job.get("apply_link")
             safe_id = hashlib.sha256(raw_id.encode("utf-8")).hexdigest()[:16]
-
-            title = job.get('title', 'Unknown Title')
-            company = job.get('company_name', 'Unknown Company')
 
             if safe_id in state["seen_jobs"]:
                 continue
 
-            fit = matcher.evaluate_fit(profile, job.get("description", ""))
+            title = job.get("title", "Role")
+            company = job.get("company_name", "Enterprise")
+            desc = job.get("description", "")
+
+            # Dynamic fit check against candidate profile
+            fit = matcher.evaluate_fit(profile, title, desc)
             score = fit.get("match_score", 0)
             viable = fit.get("is_viable", False)
-            reason = fit.get("rejection_reason", "Score below threshold")
 
-            print(f"[{idx}/{len(jobs)}] '{title}' at '{company}' -> Viable: {viable} | Score: {score}/100")
+            print(f"[{idx}/{len(jobs)}] '{title}' @ '{company}' -> Viable: {viable} | Score: {score}")
 
             if viable and score >= config.MIN_MATCH_SCORE:
-                print(f"🎯 MATCH CONFIRMED ({score}%). Tailoring resume & cover letter...")
-                assets = tailor.generate_assets(profile, job, fit)
+                print(f"🎯 MATCH CONFIRMED ({score}%). Compiling tailored PDFs...")
                 
+                bullets = tailor.generate_adapted_bullets(profile, title, company, desc)
                 out_dir = user_dir / "outputs" / safe_id
                 out_dir.mkdir(parents=True, exist_ok=True)
-                
-                resume_file = out_dir / "Tailored_Resume.md"
-                cl_file = out_dir / "Cover_Letter.md"
-                resume_file.write_text(assets.get("resume_md", ""), encoding="utf-8")
-                cl_file.write_text(assets.get("cover_letter_md", ""), encoding="utf-8")
 
-                bot.deliver_assets(
-                    chat_id=chat_id,
-                    job_title=title,
-                    company=company,
-                    resume_path=str(resume_file),
-                    cl_path=str(cl_file)
+                pdf_resume = out_dir / f"Resume_{company}_{safe_id}.pdf"
+                pdf_cl = out_dir / f"CoverLetter_{company}_{safe_id}.pdf"
+
+                # 100% dynamic rendering from user's extracted profile
+                tailor.build_pdf_resume(str(pdf_resume), profile, bullets)
+                tailor.build_pdf_cover_letter(str(pdf_cl), title, company, profile, bullets)
+
+                # Send Notification Card
+                card = (
+                    f"🎯 *HIGH-FIT OPPORTUNITY IDENTIFIED*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"💼 *Role:* {title}\n"
+                    f"🏢 *Company:* {company}\n"
+                    f"📍 *Location:* {job.get('location', 'Remote / India')}\n"
+                    f"⏳ *Exp. Detected:* {fit.get('detected_experience', '2-4 Years')}\n"
+                    f"💰 *Est. CTC:* {fit.get('salary_est', 'Market Rate')}\n"
+                    f"📊 *ATS Score:* `{score}%`\n"
+                    f"⚠️ *Skill Gaps:* {fit.get('skills_gap', 'None detected')}\n\n"
+                    f"💡 *Match Insight:*\n_{fit.get('match_reason', '')}_\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🔗 [Apply Directly on Portal]({job.get('apply_link')})"
                 )
-                print(f"📦 Delivered files to Telegram user {chat_id}")
-                matched_count += 1
-            else:
-                if not viable:
-                    print(f"   ↳ Disqualified: {reason}")
+                bot.send_message(chat_id, card)
+
+                # Send Tailored PDFs
+                bot.deliver_assets(chat_id, title, company, str(pdf_resume), str(pdf_cl))
 
             state["seen_jobs"].append(safe_id)
-
-        print(f"--- Finished Candidate {chat_id}: {matched_count} high-match jobs delivered ---\n")
 
 if __name__ == "__main__":
     tg_bot = TelegramSaaSClient()
     pipeline_state = load_state()
-    
     process_telegram_inbox(tg_bot, pipeline_state)
     run_match_pipeline(tg_bot, pipeline_state)
-    
     save_state(pipeline_state)
