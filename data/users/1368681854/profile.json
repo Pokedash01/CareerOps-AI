@@ -1,27 +1,29 @@
 {
-  "total_years_experience": 3.5,
+  "total_years_experience": 3.2,
   "core_competencies": [
     "Power Platform (Power Automate, Power Apps, Power BI)",
-    "SharePoint Online",
-    "VBA/macros",
-    "Copilot GenAI & Copilot Studio",
-    "SQL",
-    "Microsoft Excel",
-    "Lean Six Sigma Yellow Belt"
+    "SharePoint Online & Governance",
+    "VBA/macros and Excel automation",
+    "Microsoft Copilot & GenAI agents",
+    "SQL & data querying",
+    "Business process optimization (Lean Six Sigma)",
+    "Knowledge management & content engineering",
+    "QA & data governance"
   ],
   "pivot_trajectories": [
-    "Automation Engineer",
-    "Business Process Analyst",
-    "AI Solutions Architect",
-    "Digital Transformation Consultant",
-    "Product Manager \u2013 AI/Automation"
+    "Product Manager \u2013 Automation & AI Solutions",
+    "Business Analyst / Process Improvement Consultant",
+    "Automation Engineer / RPA Specialist",
+    "AI Solutions Architect / GenAI Prompt Engineer",
+    "Knowledge Management Lead",
+    "Data Governance Manager"
   ],
   "seniority_ceiling": "Mid-Level",
   "anti_targets": [
     "Cold Sales",
     "Customer Support",
-    "Call Center",
-    "Retail Sales",
-    "Manual Data Entry"
+    "Pure software development (coding) roles",
+    "Field Service",
+    "Manual data entry"
   ]
 }
