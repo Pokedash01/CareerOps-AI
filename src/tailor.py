@@ -7,14 +7,18 @@ class DocumentTailor:
 
     def generate_assets(self, profile: dict, job: dict, fit: dict) -> dict:
         sys_prompt = """
-        You are an elite ATS-resume writer. 
-        Output strictly JSON matching this schema:
+        You are an ATS resume optimization expert. Produce a targeted resume and cover letter.
+        Return strict JSON:
         {
-            "resume_md": "Full markdown resume text here...",
-            "cover_letter_md": "Full markdown cover letter text here..."
+            "resume_md": "Full markdown resume text...",
+            "cover_letter_md": "Full markdown cover letter text..."
         }
-        Rule: Use the 'terminology_tweaks' to align the candidate's skills with the job description. Do NOT invent fake experience or companies.
+        Rule: Adopt terms from 'terminology_tweaks' where functionally equivalent. Never fabricate credentials.
         """
-        prompt = f"Profile: {json.dumps(profile)}\nJob Title: {job.get('title')} at {job.get('company_name')}\nJob Description: {job.get('description')}\nTweaks: {json.dumps(fit.get('terminology_tweaks'))}\nWrite the tailored Resume and Cover letter in professional Markdown format."
-        res = self.gateway.generate(prompt=prompt, system_prompt=sys_prompt, temperature=0.3)
-        return json.loads(res)
+        prompt = (
+            f"Profile: {json.dumps(profile)}\n"
+            f"Role: {job.get('title')} at {job.get('company_name')}\n"
+            f"Job Description: {job.get('description')}\n"
+            f"Tweaks: {json.dumps(fit.get('terminology_tweaks', {}))}"
+        )
+        return self.gateway.generate(prompt=prompt, system_prompt=sys_prompt, temperature=0.3)

@@ -1,5 +1,6 @@
-import json
 import os
+import json
+import hashlib
 import requests
 from pathlib import Path
 from pypdf import PdfReader
@@ -13,89 +14,127 @@ import src.config as config
 
 STATE_FILE = Path("data/state.json")
 
-def load_state():
+def load_state() -> dict:
     if STATE_FILE.exists():
-        return json.loads(STATE_FILE.read_text())
+        try:
+            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
     return {"telegram_offset": None, "seen_jobs": []}
 
-def save_state(state):
+def save_state(state: dict):
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=2))
+    STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
-def extract_text_from_pdf(pdf_path: Path) -> str:
+def extract_pdf_text(pdf_path: Path) -> str:
     try:
         reader = PdfReader(pdf_path)
-        return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+        return "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
     except Exception as e:
+        print(f"[PDF] Extraction failed for {pdf_path}: {e}")
         return ""
 
-def fetch_new_users(bot: TelegramSaaSClient, state: dict):
+def process_telegram_inbox(bot: TelegramSaaSClient, state: dict):
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/getUpdates"
     params = {"timeout": 10, "offset": state.get("telegram_offset")}
+    
     try:
         res = requests.get(url, params=params).json()
         for item in res.get("result", []):
             state["telegram_offset"] = item["update_id"] + 1
-            message = item.get("message", {})
-            chat_id = str(message.get("chat", {}).get("id"))
+            msg = item.get("message", {})
+            chat_id = str(msg.get("chat", {}).get("id"))
             
-            if "document" in message:
-                file_id = message["document"]["file_id"]
-                file_info = requests.get(f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}").json()
-                file_path = file_info["result"]["file_path"]
-                pdf_data = requests.get(f"https://api.telegram.org/file/bot{config.TELEGRAM_BOT_TOKEN}/{file_path}").content
-                
-                user_dir = Path(f"data/users/{chat_id}/inputs")
-                user_dir.mkdir(parents=True, exist_ok=True)
-                (user_dir / "resume.pdf").write_bytes(pdf_data)
-                
-                profile_path = Path(f"data/users/{chat_id}/profile.json")
-                if profile_path.exists(): profile_path.unlink()
-                bot.send_message(chat_id, "✅ Resume received and parsed! Your CareerOps engine is now hunting.")
+            # Handle PDF document submission
+            if "document" in msg:
+                doc = msg["document"]
+                if doc.get("file_name", "").lower().endswith(".pdf"):
+                    f_info = requests.get(f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/getFile?file_id={doc['file_id']}").json()
+                    file_path = f_info["result"]["file_path"]
+                    content = requests.get(f"https://api.telegram.org/file/bot{config.TELEGRAM_BOT_TOKEN}/{file_path}").content
+                    
+                    user_dir = Path(f"data/users/{chat_id}/inputs")
+                    user_dir.mkdir(parents=True, exist_ok=True)
+                    (user_dir / "resume.pdf").write_bytes(content)
+                    
+                    # Invalidate existing profile to re-extract on next run
+                    cached_profile = Path(f"data/users/{chat_id}/profile.json")
+                    if cached_profile.exists():
+                        cached_profile.unlink()
+                        
+                    bot.send_message(chat_id, "✅ *Resume received and indexed!* CareerOps is actively matching you with roles.")
+                else:
+                    bot.send_message(chat_id, "⚠️ Please upload your resume as a standard *.PDF* document.")
+            
+            # Handle standard text messages / onboarding greetings
+            elif "text" in msg:
+                bot.send_message(
+                    chat_id, 
+                    "👋 *Welcome to CareerOps AI!*\n\nPlease upload your *Resume (as a PDF)* directly in this chat to begin automated matching."
+                )
     except Exception as e:
-        pass
+        print(f"[Telegram Inbox] Update polling failed: {e}")
 
-def run_engine(bot: TelegramSaaSClient, state: dict):
+def run_match_pipeline(bot: TelegramSaaSClient, state: dict):
+    users_root = Path("data/users")
+    if not users_root.exists():
+        return
+
     searcher = JobSearchEngine()
     matcher = MatchEngine()
     tailor = DocumentTailor()
-    users_dir = Path("data/users")
-    
-    if not users_dir.exists(): return
-        
-    for user_folder in users_dir.iterdir():
-        if not user_folder.is_dir(): continue
-        chat_id = user_folder.name
-        pdf_path = user_folder / "inputs" / "resume.pdf"
-        
-        if not pdf_path.exists(): continue
-            
-        resume_text = extract_text_from_pdf(pdf_path)
-        if not resume_text: continue
+
+    for user_dir in users_root.iterdir():
+        if not user_dir.is_dir():
+            continue
+        chat_id = user_dir.name
+        pdf_file = user_dir / "inputs" / "resume.pdf"
+        if not pdf_file.exists():
+            continue
+
+        resume_text = extract_pdf_text(pdf_file)
+        if not resume_text:
+            continue
+
         profile = extract_user_profile(chat_id, resume_text)
-        
         jobs = searcher.fetch_jobs(profile)
+
         for job in jobs:
-            job_id = job.get("job_id")
-            if job_id in state["seen_jobs"]: continue
-                
+            # Deterministic, filesystem-safe ID
+            raw_id = job.get("job_id") or f"{job.get('title')}_{job.get('company_name')}"
+            safe_id = hashlib.sha256(raw_id.encode("utf-8")).hexdigest()[:16]
+
+            if safe_id in state["seen_jobs"]:
+                continue
+
             fit = matcher.evaluate_fit(profile, job.get("description", ""))
+            
             if fit.get("is_viable") and fit.get("match_score", 0) >= config.MIN_MATCH_SCORE:
                 assets = tailor.generate_assets(profile, job, fit)
-                out_dir = user_folder / "outputs" / job_id
+                
+                out_dir = user_dir / "outputs" / safe_id
                 out_dir.mkdir(parents=True, exist_ok=True)
                 
-                resume_md = out_dir / "Tailored_Resume.md"
-                cl_md = out_dir / "Cover_Letter.md"
-                resume_md.write_text(assets.get("resume_md", ""), encoding="utf-8")
-                cl_md.write_text(assets.get("cover_letter_md", ""), encoding="utf-8")
-                
-                bot.deliver_assets(chat_id, job.get("title"), str(resume_md), str(cl_md))
-            state["seen_jobs"].append(job_id)
+                resume_file = out_dir / "Tailored_Resume.md"
+                cl_file = out_dir / "Cover_Letter.md"
+                resume_file.write_text(assets.get("resume_md", ""), encoding="utf-8")
+                cl_file.write_text(assets.get("cover_letter_md", ""), encoding="utf-8")
+
+                bot.deliver_assets(
+                    chat_id=chat_id,
+                    job_title=job.get("title", "Role"),
+                    company=job.get("company_name", "Company"),
+                    resume_path=str(resume_file),
+                    cl_path=str(cl_file)
+                )
+
+            state["seen_jobs"].append(safe_id)
 
 if __name__ == "__main__":
-    bot = TelegramSaaSClient()
-    state = load_state()
-    fetch_new_users(bot, state)
-    run_engine(bot, state)
-    save_state(state)
+    tg_bot = TelegramSaaSClient()
+    pipeline_state = load_state()
+    
+    process_telegram_inbox(tg_bot, pipeline_state)
+    run_match_pipeline(tg_bot, pipeline_state)
+    
+    save_state(pipeline_state)
