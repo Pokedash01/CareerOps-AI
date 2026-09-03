@@ -15,12 +15,13 @@ class LLMGateway:
     def __init__(self):
         self.gemini_client = genai.Client(api_key=config.GEMINI_API_KEY)
         self.groq_client = Groq(api_key=config.GROQ_API_KEY)
-        self.gemini_model = "gemini-2.5-flash"
-        self.groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+        self.gemini_model = "gemini-3.6-flash"
+        # Verified active models from runner execution logs
+        self.groq_models = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
 
     def generate(self, prompt: str, system_prompt: str, temperature: float = 0.2) -> dict:
-        # Tier 1: Gemini
-        for attempt in range(3):
+        # Tier 1: Gemini 3.6 Flash with Exponential Backoff
+        for attempt in range(4):
             try:
                 response = self.gemini_client.models.generate_content(
                     model=self.gemini_model,
@@ -35,11 +36,15 @@ class LLMGateway:
             except Exception as e:
                 err = str(e)
                 if "503" in err or "429" in err:
-                    time.sleep((attempt + 1) * 2)
+                    wait_sec = (attempt + 1) * 3
+                    print(f"[LLM Gateway] Gemini {self.gemini_model} busy (503/429). Retrying in {wait_sec}s...")
+                    time.sleep(wait_sec)
                     continue
+                print(f"[LLM Gateway] Gemini {self.gemini_model} failed: {e}")
                 break
 
-        # Tier 2: Groq (Strictly Production Llama Models)
+        # Tier 2: Groq (Verified Production Models)
+        print("[LLM Gateway] Falling back to verified Groq models...")
         for model in self.groq_models:
             try:
                 completion = self.groq_client.chat.completions.create(
@@ -54,6 +59,6 @@ class LLMGateway:
                 )
                 return clean_json_response(completion.choices[0].message.content)
             except Exception as e:
-                print(f"[LLM Gateway] Groq {model} failed: {e}")
+                print(f"[LLM Gateway] Groq {model} failed: {e}. Trying next...")
 
-        raise RuntimeError("All LLM providers failed.")
+        raise RuntimeError("All LLM providers and fallbacks failed.")
