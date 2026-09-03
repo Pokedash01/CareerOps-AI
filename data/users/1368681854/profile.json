@@ -1,0 +1,80 @@
+{
+  "full_name": "Kartik Bhatt",
+  "contact": {
+    "email": "kb270102@gmail.com",
+    "phone": "+91-7428062532",
+    "location": "",
+    "links": "LinkedIn, Website"
+  },
+  "total_years_experience": 3.2,
+  "seniority_tier": "Mid",
+  "education": [
+    {
+      "institution": "Maharaja Surajmal Institute",
+      "degree": "Bachelor of Computer Applications",
+      "details": "Majors: Computer Science, GPA: 9.3/10 (Top 1%)",
+      "dates": "Jul\u201919 \u2013 Aug\u201922"
+    }
+  ],
+  "experience": [
+    {
+      "company": "KPMG",
+      "role": "Analyst",
+      "location": "Gurugram",
+      "dates": "May\u201924 \u2013 Present",
+      "summary": "Led cross-functional projects across 13 sectors demanding 360-degree stakeholder management and played a key role in business development.",
+      "bullets": [
+        "Built complete Power Platform solution to facilitate 20,000 reach outs annually to more than 30 member firms across 13 sectors including Power Automate flows, SharePoint lists, Power Apps, Power BI dashboards saving 1,200 hrs. annually.",
+        "Built end-to-end solution to facilitate migration of old Excel\u2011based data collection for more than 45 pillars to automated SPO list integration, including 3 Power Automate flows for alerts, change management, data migration and permission governance.",
+        "Built and managed multiple VBA\u2011macros\u2011based solutions for refreshing a repository of more than 30,000 assets globally, saving more than 485 hrs. annually.",
+        "Built a multi\u2011modal Copilot agent to assist with messy data, draft fields, and apply metadata tags based on source and guidelines, saving 325 hrs. annually.",
+        "Saved more than 2,000 hrs. annually using Power Platform, Copilot Studio and VBA macros (Business Development).",
+        "Catered to 100+ RFP and RFI requests and created more than 100 internal site pages according to KPMG brand values and standards.",
+        "Undertook a complete contact management system for more than 10,000 KGS members.",
+        "Uploaded 5,000+ content assets across 3 content types and 15 libraries.",
+        "Performed Audit Market Share (AMS) analysis for more than 6 sectors.",
+        "Handled more than 50 SharePoint governance and administration requests, including term store, change, metadata, and permission level management.",
+        "Awarded \u2018KUDOS\u2019 for applying Lean Six Sigma methodology and saving more than 2,000 hrs. annually.",
+        "Earned the \u2018Super Team\u2019 award for hosting and organizing employee council events for the wider KGS group.",
+        "Received \u2018Ally of Inclusion\u2019 accolade recognizing commitment to an inclusive work environment.",
+        "Awarded \u2018KUDOS\u2019 for migrating legacy practices using VBA and Excel to a GenAI\u2011focused solution with agents and Power Platform.",
+        "Awarded \u2018Gurus@Work\u2019 for contributions to learning culture in KGS while empowering and inspiring learners."
+      ]
+    },
+    {
+      "company": "GlobalLogic Technologies Private Limited",
+      "role": "Associate Analyst",
+      "location": "Gurugram",
+      "dates": "Sep\u201922 \u2013 Oct\u201923",
+      "summary": "Participated in various content generation and manipulation projects for clients such as Google.",
+      "bullets": [
+        "Created best practices, process documentation, and QA processes for a Google project to build test and main datasets for GenAI training used to search content on Android screens.",
+        "Piloted a project to extract relevant answers from multi\u2011level documents to build an AI training dataset.",
+        "Designed and implemented QA processes for data entry, reducing errors by 25% and improving data accuracy.",
+        "Managed process documentation for 10+ projects, ensuring compliance and stakeholder accessibility.",
+        "Collaborated with onshore stakeholders, improving project quality from 74% to a steady 95%.",
+        "Performed QA on more than 500 pieces weekly.",
+        "Led 3 pilot projects, securing all of them while competing with major MNCs."
+      ]
+    }
+  ],
+  "skills": [
+    "MS Excel",
+    "Copilot GenAI (Agents)",
+    "Power Automate",
+    "Power BI",
+    "SharePoint Online",
+    "Power Apps",
+    "Copilot Studio",
+    "SQL"
+  ],
+  "certifications": [
+    "Microsoft Certified: Azure AI Fundamentals (AI-901)",
+    "Microsoft Certified: AI Transformation Leader (AB-731)",
+    "Lean Six Sigma: Yellow Belt",
+    "Oracle: Agentic AI Certified Foundations Associate",
+    "Microsoft Certified: AI Business Professional (AB-730)"
+  ],
+  "target_roles": [],
+  "anti_targets": []
+}
