@@ -107,27 +107,46 @@ def run_match_pipeline(bot: TelegramSaaSClient, state: dict):
             company = job.get("company_name", "Enterprise")
             desc = job.get("description", "")
 
-            fit = matcher.evaluate_fit(profile, title, desc)
+            # NOTE: pass through what job_search.py actually extracted from
+            # the real JD - previously these were dropped on the floor, so
+            # the location/salary/experience filters in matcher.py were
+            # never exercised.
+            fit = matcher.evaluate_fit(
+                profile, title, desc,
+                location=job.get("location", "Not specified"),
+                salary_range_lpa=job.get("salary_range_lpa"),
+                experience_range_years=job.get("experience_range_years"),
+            )
             score = fit.get("match_score", 0)
             viable = fit.get("is_viable", False)
+            reason = fit.get("rejection_reason")
 
-            print(f"[{idx}/{len(jobs)}] '{title}' @ '{company}' -> Viable: {viable} | Score: {score}%")
+            status_line = f"[{idx}/{len(jobs)}] '{title}' @ '{company}' -> Viable: {viable} | Score: {score}%"
+            if reason:
+                status_line += f" | Filtered: {reason}"
+            print(status_line)
 
             if viable and score >= config.MIN_MATCH_SCORE:
-                bullets = tailor.generate_adapted_bullets(profile, title, company, desc)
+                try:
+                    tailored = tailor.generate_tailored_content(profile, title, company, desc)
+                except Exception as e:
+                    print(f"[Tailor] Failed to generate tailored content for '{title}' @ '{company}': {e}")
+                    state["seen_jobs"].append(safe_id)
+                    continue
+
                 out_dir = user_dir / "outputs" / safe_id
                 out_dir.mkdir(parents=True, exist_ok=True)
 
                 pdf_resume = out_dir / f"Resume_{company}_{safe_id}.pdf"
                 pdf_cl = out_dir / f"CoverLetter_{company}_{safe_id}.pdf"
 
-                tailor.build_pdf_resume(str(pdf_resume), profile)
-                tailor.build_pdf_cover_letter(str(pdf_cl), title, company, profile, bullets)
+                tailor.build_pdf_resume(str(pdf_resume), profile, tailored=tailored)
+                tailor.build_pdf_cover_letter(str(pdf_cl), title, company, profile, tailored)
 
                 resume_url = github_raw_link(pdf_resume)
                 cl_url = github_raw_link(pdf_cl)
-                exp_req = fit.get("detected_experience", "2–5 Years / Unspecified")
-                sal_range = fit.get("salary_range", "₹12 - ₹18 LPA (Est.)")
+                exp_req = fit.get("detected_experience", "Not specified in JD")
+                sal_range = fit.get("salary_range", "Not specified in JD")
                 gaps = fit.get("skills_gap", "None")
 
                 # Exact single-message card matching target template
@@ -135,7 +154,7 @@ def run_match_pipeline(bot: TelegramSaaSClient, state: dict):
                     f"🎯 <b>New High-Fit Role Matched for {first_name}! (V2) </b>\n\n"
                     f"📌 <b>Role:</b> {title}\n"
                     f"🏢 <b>Company:</b> {company}\n"
-                    f"📍 <b>Location:</b> {job.get('location', 'Remote')}\n"
+                    f"📍 <b>Location:</b> {job.get('location', 'Not specified')}\n"
                     f"⏳ <b>Experience Required:</b> {exp_req}\n"
                     f"💰 <b>Salary Range:</b> {sal_range}\n"
                     f"📊 <b>Fit Score:</b> {score}%\n"
