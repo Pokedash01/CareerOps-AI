@@ -132,7 +132,7 @@ def run_match_pipeline(bot: TelegramSaaSClient, state: dict):
 
                 # Exact single-message card matching target template
                 msg = (
-                    f"🎯 <b>New High-Fit Role Matched for {first_name}!</b>\n\n"
+                    f"🎯 <b>New High-Fit Role Matched for {first_name}! (V2) </b>\n\n"
                     f"📌 <b>Role:</b> {title}\n"
                     f"🏢 <b>Company:</b> {company}\n"
                     f"📍 <b>Location:</b> {job.get('location', 'Remote')}\n"
