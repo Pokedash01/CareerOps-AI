@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Mail, Phone, MapPin, Briefcase, GraduationCap, Award, Settings } from "lucide-react";
 import Header from "@/components/Header";
 import { getProfile } from "@/lib/github";
 
@@ -10,8 +12,8 @@ export default async function ProfilePage() {
     return (
       <main>
         <Header />
-        <div className="max-w-4xl mx-auto px-6 py-12">
-          <div className="card p-8 text-center text-navy-500">
+        <div className="max-w-7xl mx-auto px-6 py-12">
+          <div className="card text-center text-gray-400">
             No profile found. Upload your resume via the Telegram bot first.
           </div>
         </div>
@@ -22,53 +24,82 @@ export default async function ProfilePage() {
   return (
     <main>
       <Header />
-      <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
-        <div className="card p-6">
-          <h1 className="text-xl font-bold text-navy-900">{profile.full_name}</h1>
-          <p className="text-navy-600 mt-1">{profile.total_years_experience} years · {profile.seniority_tier}</p>
-          <div className="flex flex-wrap gap-4 mt-3 text-sm text-navy-500">
-            {profile.contact?.email && <span>📧 {profile.contact.email}</span>}
-            {profile.contact?.phone && <span>📱 {profile.contact.phone}</span>}
-            {profile.contact?.location && <span>📍 {profile.contact.location}</span>}
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+        {/* Header card */}
+        <div className="card">
+          <div className="flex items-start justify-between flex-wrap gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white">{profile.full_name}</h1>
+              <p className="text-sm text-gray-400 mt-1">
+                {profile.total_years_experience} years · {profile.seniority_tier}
+              </p>
+              <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-400">
+                {profile.contact?.email && (
+                  <span className="flex items-center gap-1.5"><Mail size={13} />{profile.contact.email}</span>
+                )}
+                {profile.contact?.phone && (
+                  <span className="flex items-center gap-1.5"><Phone size={13} />{profile.contact.phone}</span>
+                )}
+                {profile.contact?.location && (
+                  <span className="flex items-center gap-1.5"><MapPin size={13} />{profile.contact.location}</span>
+                )}
+              </div>
+            </div>
+            <Link href="/settings" className="btn-secondary">
+              <Settings size={14} /> Edit preferences
+            </Link>
           </div>
         </div>
 
-        <section className="card p-5">
-          <h2 className="text-xs uppercase tracking-wider text-navy-500 font-semibold mb-3">Skills</h2>
+        {/* Skills */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Award size={16} className="text-blue-400" />
+            <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Skills</h2>
+          </div>
           <div className="flex flex-wrap gap-2">
             {profile.skills.map((s) => (
-              <span key={s} className="text-sm bg-navy-50 text-navy-700 px-3 py-1 rounded-full">{s}</span>
+              <span key={s} className="chip-blue">{s}</span>
             ))}
           </div>
           {profile.certifications?.length > 0 && (
             <>
-              <h3 className="text-xs uppercase tracking-wider text-navy-500 font-semibold mt-5 mb-2">Certifications</h3>
+              <p className="label mt-6 mb-3">Certifications</p>
               <div className="flex flex-wrap gap-2">
                 {profile.certifications.map((c) => (
-                  <span key={c} className="text-sm bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">{c}</span>
+                  <span key={c} className="chip-emerald">{c}</span>
                 ))}
               </div>
             </>
           )}
-        </section>
+        </div>
 
-        <section className="card p-5">
-          <h2 className="text-xs uppercase tracking-wider text-navy-500 font-semibold mb-4">Work Experience</h2>
+        {/* Experience */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Briefcase size={16} className="text-blue-400" />
+            <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Work Experience</h2>
+          </div>
           <div className="space-y-5">
             {profile.experience.map((exp, i) => (
-              <div key={i} className={i < profile.experience.length - 1 ? "border-b border-navy-50 pb-5" : ""}>
-                <div>
-                  <p className="font-semibold text-navy-800">{exp.role}</p>
-                  <p className="text-sm text-navy-600">
-                    {exp.company}{exp.location ? ` · ${exp.location}` : ""}
-                  </p>
-                  {exp.dates && <p className="text-xs text-navy-400 mt-0.5">{exp.dates}</p>}
+              <div
+                key={i}
+                className={`sub-card p-4 ${i < profile.experience.length - 1 ? "" : ""}`}
+              >
+                <div className="flex items-start justify-between flex-wrap gap-2">
+                  <div>
+                    <p className="text-base font-semibold text-white">{exp.role}</p>
+                    <p className="text-sm text-gray-400 mt-0.5">
+                      {exp.company}{exp.location ? ` · ${exp.location}` : ""}
+                    </p>
+                  </div>
+                  {exp.dates && <span className="text-xs text-gray-500">{exp.dates}</span>}
                 </div>
-                {exp.summary && <p className="text-sm text-navy-600 mt-2">{exp.summary}</p>}
+                {exp.summary && <p className="text-sm text-gray-300 mt-3">{exp.summary}</p>}
                 {exp.bullets.length > 0 && (
-                  <ul className="mt-2 space-y-1">
+                  <ul className="mt-3 space-y-1.5">
                     {exp.bullets.map((b, j) => (
-                      <li key={j} className="text-sm text-navy-700 pl-4 relative before:content-['•'] before:absolute before:-left-1 before:text-navy-400">
+                      <li key={j} className="text-sm text-gray-300 pl-4 relative before:content-['•'] before:absolute before:left-0 before:text-gray-600">
                         {b}
                       </li>
                     ))}
@@ -77,48 +108,55 @@ export default async function ProfilePage() {
               </div>
             ))}
           </div>
-        </section>
+        </div>
 
+        {/* Education */}
         {profile.education?.length > 0 && (
-          <section className="card p-5">
-            <h2 className="text-xs uppercase tracking-wider text-navy-500 font-semibold mb-3">Education</h2>
+          <div className="card">
+            <div className="flex items-center gap-2 mb-4">
+              <GraduationCap size={16} className="text-blue-400" />
+              <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Education</h2>
+            </div>
             <div className="space-y-3">
               {profile.education.map((edu, i) => (
-                <div key={i}>
-                  <p className="font-medium text-navy-800">{edu.institution}</p>
-                  <p className="text-sm text-navy-600">{edu.degree}{edu.details ? ` · ${edu.details}` : ""}</p>
-                  {edu.dates && <p className="text-xs text-navy-400 mt-0.5">{edu.dates}</p>}
+                <div key={i} className="sub-card p-4">
+                  <p className="text-sm font-semibold text-white">{edu.institution}</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {edu.degree}{edu.details ? ` · ${edu.details}` : ""}
+                  </p>
+                  {edu.dates && <p className="text-xs text-gray-500 mt-1">{edu.dates}</p>}
                 </div>
               ))}
             </div>
-          </section>
+          </div>
         )}
 
-        <section className="card p-5">
-          <h2 className="text-xs uppercase tracking-wider text-navy-500 font-semibold mb-3">Preferences</h2>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <PreferenceItem label="Locations" value={profile.preferred_locations?.join(", ")} />
-            <PreferenceItem label="Target roles" value={profile.target_roles?.join(", ")} />
-            <PreferenceItem label="Avoiding" value={profile.anti_targets?.join(", ") || "None"} />
-            <PreferenceItem label="Internships" value={profile.open_to_internship ? "Yes" : "No"} />
+        {/* Preferences */}
+        <div className="card">
+          <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Preferences</h2>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <PrefItem label="Locations" value={profile.preferred_locations?.join(", ")} />
+            <PrefItem label="Target roles" value={profile.target_roles?.join(", ")} />
+            <PrefItem label="Avoiding" value={profile.anti_targets?.join(", ") || "None"} />
+            <PrefItem label="Internships" value={profile.open_to_internship ? "Yes" : "No"} />
             {profile.salary_expectation && (
-              <PreferenceItem
+              <PrefItem
                 label="Salary"
                 value={`₹${profile.salary_expectation.min_lpa ?? "?"} – ₹${profile.salary_expectation.max_lpa ?? "?"} LPA`}
               />
             )}
           </div>
-        </section>
+        </div>
       </div>
     </main>
   );
 }
 
-function PreferenceItem({ label, value }: { label: string; value?: string | null }) {
+function PrefItem({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div>
-      <p className="text-xs text-navy-400 uppercase tracking-wider">{label}</p>
-      <p className="text-navy-800 mt-0.5">{value || "—"}</p>
+    <div className="sub-card p-4">
+      <p className="label mb-1.5">{label}</p>
+      <p className="text-sm text-white">{value || "—"}</p>
     </div>
   );
 }

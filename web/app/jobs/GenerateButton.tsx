@@ -13,14 +13,14 @@ export default function GenerateButton({
 
   if (state === "done" && result) {
     return (
-      <a href={result.url} target="_blank" rel="noreferrer" className="btn-primary text-xs">
+      <a href={result.url} target="_blank" rel="noreferrer" className="btn-primary text-xs w-full justify-center">
         📄 Download tailored PDF
       </a>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1 items-end">
+    <div className="flex flex-col gap-1 items-end w-full">
       <button
         onClick={async () => {
           setState("loading");
@@ -41,7 +41,7 @@ export default function GenerateButton({
           }
         }}
         disabled={state === "loading"}
-        className="btn-primary text-xs"
+        className="btn-primary text-xs w-full justify-center"
       >
         {state === "loading" ? (
           <span className="flex items-center gap-1.5">
@@ -54,9 +54,9 @@ export default function GenerateButton({
         ) : "Generate tailored resume"}
       </button>
       {state === "error" && (
-        <span className="text-xs text-red-500 max-w-36 text-right">{error}</span>
+        <span className="text-xs text-rose-400 max-w-36 text-right">{error}</span>
       )}
-      <span className="text-xs text-navy-400">30–60s · LLM + PDF</span>
+      <span className="text-xs text-gray-500">30–60s · LLM + PDF</span>
     </div>
   );
 }

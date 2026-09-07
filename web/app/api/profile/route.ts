@@ -22,8 +22,9 @@ export async function POST(req: NextRequest) {
       const { data } = await octokit.repos.getContent({
         owner, repo: repoName, path: `data/users/${chatId}/profile.json`, branch: "main",
       });
-      if (data && data.encoding === "base64") {
-        existingProfile = JSON.parse(Buffer.from((data as { content: string }).content, "base64").toString("utf-8"));
+      if (data && !Array.isArray(data) && (data as { encoding?: string }).encoding === "base64") {
+        const file = data as unknown as { content: string };
+        existingProfile = JSON.parse(Buffer.from(file.content, "base64").toString("utf-8"));
       }
     } catch {
       // File doesn't exist yet — that's fine, we create it
@@ -61,8 +62,9 @@ export async function POST(req: NextRequest) {
       const { data } = await octokit.repos.getContent({
         owner, repo: repoName, path: "data/state.json", branch: "main",
       });
-      if (data && data.encoding === "base64") {
-        stateContent = JSON.parse(Buffer.from((data as { content: string }).content, "base64").toString("utf-8"));
+      if (data && !Array.isArray(data) && (data as { encoding?: string }).encoding === "base64") {
+        const file = data as unknown as { content: string };
+        stateContent = JSON.parse(Buffer.from(file.content, "base64").toString("utf-8"));
       }
     } catch {
       // state.json doesn't exist — create basic structure

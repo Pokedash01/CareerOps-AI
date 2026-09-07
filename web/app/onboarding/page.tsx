@@ -1,3 +1,4 @@
+import { CheckCircle2, Circle, Sparkles, ArrowRight } from "lucide-react";
 import Header from "@/components/Header";
 import {
   getProfile,
@@ -10,11 +11,11 @@ import {
 export const revalidate = 300;
 
 const ALL_PREFERENCE_FIELDS = [
-  { key: "preferred_locations", label: "📍 Preferred locations" },
-  { key: "target_roles", label: "💼 Target roles" },
-  { key: "anti_targets", label: "🚫 Roles to avoid" },
-  { key: "salary_expectation", label: "💰 Salary expectation" },
-  { key: "open_to_internship", label: "🎓 Open to internships" },
+  { key: "preferred_locations", label: "Preferred locations" },
+  { key: "target_roles", label: "Target roles" },
+  { key: "anti_targets", label: "Roles to avoid" },
+  { key: "salary_expectation", label: "Salary expectation" },
+  { key: "open_to_internship", label: "Open to internships" },
 ];
 
 export default async function OnboardingPage() {
@@ -28,45 +29,61 @@ export default async function OnboardingPage() {
   const userState = state?.onboarding?.[CHAT_ID];
   const stage = userState?.stage ?? (profile ? "unknown" : "not_started");
 
+  const statusCard = complete
+    ? {
+        tone: "border-emerald-500/30",
+        icon: <CheckCircle2 size={28} className="text-emerald-400" />,
+        title: "Onboarding complete",
+        body: "All preference fields are filled. The pipeline is generating matches.",
+        chip: "chip-emerald",
+        chipText: "Complete",
+      }
+    : {
+        tone: "border-amber-500/30",
+        icon: <Sparkles size={28} className="text-amber-400" />,
+        title:
+          stage === "asking"
+            ? "Bot is asking you questions"
+            : stage === "reviewing"
+            ? "Waiting for your confirmation in Telegram"
+            : stage === "not_started"
+            ? "Onboarding not started"
+            : "Status unknown",
+        body: "Open the Telegram bot and reply to the questions. Once you confirm the profile, the pipeline will start matching.",
+        chip: "chip-amber",
+        chipText: "Pending",
+      };
+
   return (
     <main>
       <Header />
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
         <div>
-          <h1 className="text-xl font-semibold text-navy-800">Onboarding status</h1>
-          <p className="text-sm text-navy-500 mt-1">
+          <h1 className="text-2xl font-bold text-white">Onboarding status</h1>
+          <p className="text-sm text-gray-400 mt-1">
             Track which preference fields the bot has collected. Edit them in
             the Telegram conversation; the dashboard updates within 5 min.
           </p>
         </div>
 
-        <section className={`card p-5 ${complete ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}>
-          <div className="flex items-start gap-3">
-            <span className="text-2xl">{complete ? "✅" : "⏳"}</span>
+        {/* Status card */}
+        <section className={`card border ${statusCard.tone}`}>
+          <div className="flex items-start gap-4">
+            <div className="shrink-0">{statusCard.icon}</div>
             <div className="flex-1">
-              <h2 className="font-semibold text-navy-800">
-                {complete
-                  ? "Onboarding complete"
-                  : stage === "asking"
-                  ? "Bot is asking you questions"
-                  : stage === "reviewing"
-                  ? "Waiting for your confirmation in Telegram"
-                  : stage === "not_started"
-                  ? "Onboarding not started"
-                  : "Status unknown"}
-              </h2>
-              <p className="text-sm text-navy-600 mt-1">
-                {complete
-                  ? "All preference fields are filled. The pipeline is generating matches."
-                  : "Open the Telegram bot and reply to the questions. Once you confirm the profile, the pipeline will start matching."}
-              </p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-base font-semibold text-white">{statusCard.title}</h2>
+                <span className={statusCard.chip}>{statusCard.chipText}</span>
+              </div>
+              <p className="text-sm text-gray-400 mt-1.5">{statusCard.body}</p>
             </div>
           </div>
         </section>
 
+        {/* Preference fields */}
         {profile && (
-          <section className="card p-5">
-            <h2 className="text-xs uppercase tracking-wider text-navy-500 font-semibold mb-3">Preference fields</h2>
+          <section className="card">
+            <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Preference fields</h2>
             <div className="space-y-2">
               {ALL_PREFERENCE_FIELDS.map((field) => {
                 const value = (profile as unknown as Record<string, unknown>)[field.key];
@@ -74,19 +91,26 @@ export default async function OnboardingPage() {
                   value !== null &&
                   value !== undefined &&
                   (Array.isArray(value) ? value.length > 0 : value !== "");
+                const askingNow = queue.includes(field.key);
                 return (
-                  <div key={field.key} className="flex items-center gap-3 py-2 border-b border-navy-50 last:border-0">
-                    <span className="text-xl">{filled ? "✅" : "⬜"}</span>
-                    <div className="flex-1">
-                      <div className="font-medium text-navy-800">{field.label}</div>
-                      <div className="text-xs text-navy-500">
+                  <div key={field.key} className="sub-card p-4 flex items-center gap-3">
+                    {filled ? (
+                      <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+                    ) : (
+                      <Circle size={18} className="text-gray-600 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-white">{field.label}</div>
+                      <div className="text-xs text-gray-500 mt-0.5 truncate">
                         {filled
                           ? renderValue(value)
-                          : queue.includes(field.key)
+                          : askingNow
                           ? "Bot is asking you right now"
                           : "Not collected yet"}
                       </div>
                     </div>
+                    {filled && <span className="chip-emerald shrink-0">Filled</span>}
+                    {!filled && askingNow && <span className="chip-amber shrink-0">Asking</span>}
                   </div>
                 );
               })}
@@ -94,15 +118,18 @@ export default async function OnboardingPage() {
           </section>
         )}
 
-        <section className="card p-5">
-          <h2 className="text-xs uppercase tracking-wider text-navy-500 font-semibold mb-3">How to update your preferences</h2>
-          <p className="text-sm text-navy-700 mb-3">
+        {/* How to update */}
+        <section className="card">
+          <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">How to update your preferences</h2>
+          <p className="text-sm text-gray-300 mb-4">
             You can edit all preference fields in the dashboard — no need to chat with the bot.
             Changes save to your profile instantly.
           </p>
-          <a href="/settings" className="btn-primary inline-block text-sm">Edit Preferences →</a>
-          <p className="text-xs text-navy-400 mt-3">
-            Or update via Telegram: open the bot, send <code className="bg-navy-50 px-1 rounded">/start</code> or your resume PDF,
+          <a href="/settings" className="btn-primary inline-flex">
+            Edit Preferences <ArrowRight size={14} />
+          </a>
+          <p className="text-xs text-gray-500 mt-4">
+            Or update via Telegram: open the bot, send <code className="bg-[#1A1D23] text-gray-300 px-1.5 py-0.5 rounded">/start</code> or your resume PDF,
             and reply to the questions.
           </p>
         </section>
