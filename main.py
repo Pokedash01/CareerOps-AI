@@ -197,6 +197,17 @@ def process_telegram_inbox(bot: TelegramSaaSClient, state: dict):
                         "✅ Resume received. Parsing now — I'll message you "
                         "with the next steps shortly.",
                     )
+
+                    # Parse the resume inline so the first onboarding question
+                    # arrives immediately, instead of waiting for the next
+                    # 4-hour pipeline run. Failures fall through to that run.
+                    try:
+                        resume_text = extract_pdf_text(user_dir / "resume.pdf")
+                        if resume_text:
+                            profile = extract_user_profile(chat_id, resume_text)
+                            start_onboarding_if_needed(bot, state, chat_id, profile)
+                    except Exception as e:
+                        print(f"[Telegram Inbox] Inline profile parse failed: {e}")
                 continue
 
             # 3. Plain text — could be an onboarding reply.
