@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.env
+.venv/
+venv/
+.eggs/
+*.egg-info/
+
+# Bot data (generated at runtime — never commit user files)
+data/state.json
+data/users/*/inputs/
+data/users/*/profile.json
+data/users/*/jobs.json
+
+# Web build artifacts
+web/node_modules/
+web/.next/
+web/.env*.local
+
+# OS
+.DS_Store
+Thumbs.db

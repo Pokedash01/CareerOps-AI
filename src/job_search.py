@@ -1,3 +1,10 @@
+"""
+Job search engine.
+
+All user-specific values come from the profile dict — never from hardcoded
+constants. Engine-level choices (ATS domains, training platform exclusions,
+aggregator site bans) are constant and stay here.
+"""
 import re
 import requests
 from datetime import date
@@ -5,17 +12,33 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import src.config as config
 
-ATS_DOMAINS = "(site:myworkdayjobs.com OR site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com OR site:smartrecruiters.com)"
-LOCATIONS = '("Gurgaon" OR "Gurugram" OR "Noida" OR "Delhi" OR "Bangalore" OR "Bengaluru" OR "Remote" OR "India")'
+# --------------------------------------------------------------------
+# Engine constants (NOT user-specific)
+# --------------------------------------------------------------------
 
-# Aggregator/listing sites that show up as strong organic results for
-# broad (non site:-restricted) queries but return a *search results page*
-# rather than a single job posting. Excluded from the broadened query and
-# also checked again as a post-filter belt-and-braces measure below.
+ATS_DOMAINS = (
+    "(site:myworkdayjobs.com OR site:boards.greenhouse.io OR "
+    "site:jobs.lever.co OR site:jobs.ashbyhq.com OR "
+    "site:smartrecruiters.com)"
+)
+
+# Training/course platforms that return as organic results for skill
+# searches but are not real job postings.
+TRAINING_EXCLUSIONS = (
+    "-site:udemy.com -site:udacity.com -site:coursera.org "
+    "-site:linkedin.com/learning -site:skillshare.com "
+    "-site:pluralsight.com -site:edx.org -site: codecademy.com "
+    "-site:simplilearn.com -site:greatlearning.com "
+    "-site:intellipaat.com -site:upgrad.com -site:scaler.com "
+    "-site:naukri.com/learning -site:邪眼.info -site:邪眼.blog "
+    "-site:邪眼.io -site:邪眼.dev"
+)
+
 AGGREGATOR_EXCLUSIONS = (
-    "-site:indeed.com -site:in.indeed.com -site:naukri.com -site:linkedin.com "
-    "-site:glassdoor.com -site:glassdoor.co.in -site:shine.com -site:timesjobs.com "
-    "-site:foundit.in -site:monsterindia.com -site:instahyre.com"
+    "-site:indeed.com -site:in.indeed.com -site:naukri.com "
+    "-site:linkedin.com -site:glassdoor.com -site:glassdoor.co.in "
+    "-site:shine.com -site:timesjobs.com -site:foundit.in "
+    "-site:monsterindia.com -site:instahyre.com"
 )
 
 _LISTING_PAGE_MARKERS = re.compile(
@@ -26,16 +49,17 @@ _LISTING_PAGE_MARKERS = re.compile(
     re.IGNORECASE,
 )
 
-# How many distinct queries to run per pipeline execution, and how many
-# result pages (10 results each) to pull per query. Raising these widens
-# the pool but costs more SerpAPI/searchapi credits per run.
 MAX_QUERIES = getattr(config, "MAX_SEARCH_QUERIES", 4)
 PAGES_PER_QUERY = getattr(config, "SEARCH_PAGES_PER_QUERY", 2)
 
+# Used only for parsing JDs (extracting location from raw text) — not
+# used to build queries or filter results.
 KNOWN_CITIES = [
-    "Gurgaon", "Gurugram", "Noida", "New Delhi", "Delhi", "Bangalore", "Bengaluru",
-    "Mumbai", "Pune", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad", "Remote",
-    "Hybrid", "Work From Home",
+    "Gurgaon", "Gurugram", "Noida", "New Delhi", "Delhi",
+    "Bangalore", "Bengaluru", "Mumbai", "Pune", "Hyderabad",
+    "Chennai", "Kolkata", "Ahmedabad", "Remote", "Hybrid",
+    "Work From Home", "San Francisco", "New York", "London",
+    "Singapore", "Dubai",
 ]
 
 _SALARY_PATTERNS = [
@@ -50,11 +74,79 @@ _EXPERIENCE_PATTERNS = [
 ]
 
 
+# --------------------------------------------------------------------
+# Post-fetch filters (run after get, before scoring)
+# --------------------------------------------------------------------
+
+def is_training_url(url: str) -> bool:
+    if not url:
+        return False
+    tlds = [
+        "udemy.com", "udacity.com", "coursera.org", "linkedin.com/learning",
+        "skillshare.com", "pluralsight.com", "edx.org", "codecademy.com",
+        "simplilearn.com", "greatlearning.com", "intellipaat.com",
+        "upgrad.com", "scaler.com", "naukri.com/learning",
+    ]
+    l = url.lower()
+    return any(t in l for t in tlds)
+
+
+def is_training_title(title: str) -> bool:
+    if not title:
+        return False
+    t = title.lower()
+    return any(
+        kw in t for kw in [
+            "course", "tutorial", "learn ", " training ",
+            "certification program", "bootcamp", " from scratch",
+        ]
+    )
+
+
+def is_training_content(title: str, snippet: str) -> bool:
+    if is_training_title(title):
+        return True
+    t = (title + " " + snippet).lower()
+    return any(
+        kw in t for kw in [
+            "enroll now", "limited seats", "apply now for free",
+            "100% placement", "live project", "download syllabus",
+            "course curriculum", "course fee",
+        ]
+    )
+
+
+def is_specific_job_link(url: str) -> bool:
+    if not url:
+        return False
+    if _LISTING_PAGE_MARKERS.search(url):
+        return False
+    if re.search(r"[?&](q|k|keywords)=", url, re.IGNORECASE) and "myworkdayjobs" not in url.lower():
+        return False
+    return True
+
+
+# --------------------------------------------------------------------
+# Helpers
+# --------------------------------------------------------------------
+
+def _infer_country_gl(profile: dict) -> str:
+    """Pick Google locale (gl) from preferred locations. Any non-India
+    city or 'Remote' without India suggests a US/global candidate."""
+    locs = [l.lower() for l in profile.get("preferred_locations", [])]
+    india_signals = {"india", "delhi", "gurgaon", "gurugram", "bangalore",
+                     "bengaluru", "mumbai", "pune", "chennai", "hyderabad",
+                     "kolkata", "noida"}
+    if locs and not any(s in " ".join(locs) for s in india_signals):
+        return "us"
+    return "in"
+
+
 def clean_company_name(raw_name: str, url: str) -> str:
     try:
         domain = urlparse(url).netloc.lower()
         parts = domain.split(".")
-        candidate = parts[0] if parts[0] not in ["boards", "jobs", "www"] else parts[1]
+        candidate = parts[0] if parts[0] not in ("boards", "jobs", "www") else parts[1]
         candidate = re.sub(r"(it|consulting|services|pvt|ltd|inc|llc|tech).*", "", candidate, flags=re.IGNORECASE)
         candidate = candidate.replace("-", " ").strip().title()
         if len(candidate) >= 3:
@@ -63,24 +155,6 @@ def clean_company_name(raw_name: str, url: str) -> str:
         pass
     cleaned = re.sub(r"(pvt|ltd|services|consulting|technologies).*", "", raw_name, flags=re.IGNORECASE)
     return cleaned.strip().title() or raw_name
-
-
-def is_specific_job_link(url: str) -> bool:
-    """Reject links that point at an aggregator's search/listing page
-    rather than a single job posting. This is a safety net in addition
-    to the -site: exclusions baked into the query itself, since Google
-    doesn't always honor those perfectly (especially combined with
-    intitle:), and an ATS domain could in principle also expose a
-    public search view."""
-    if not url:
-        return False
-    if _LISTING_PAGE_MARKERS.search(url):
-        return False
-    # Generic guard: a bare keyword-search query string on a non-ATS
-    # domain is almost always a listing page, not a job posting.
-    if re.search(r"[?&](q|k|keywords)=", url, re.IGNORECASE) and "myworkdayjobs" not in url.lower():
-        return False
-    return True
 
 
 def fetch_full_jd(url: str, timeout: int = 10) -> str:
@@ -145,8 +219,6 @@ def extract_experience_years(text: str):
 
 
 def _rotate(items: list, window: int, offset: int) -> list:
-    """Pick a different slice of `items` each day so repeated runs surface
-    different role/skill combinations instead of the exact same query."""
     if not items:
         return items
     n = len(items)
@@ -157,48 +229,83 @@ def _rotate(items: list, window: int, offset: int) -> list:
     return [items[i] for i in idxs]
 
 
+# --------------------------------------------------------------------
+# Query builder
+# --------------------------------------------------------------------
+
 class JobSearchEngine:
     def __init__(self):
         self.api_key = config.SERPAPI_KEY
 
     def _build_queries(self, profile: dict) -> list[str]:
-        all_roles = profile.get("target_roles", ["Business Analyst", "Data Analyst"])
-        all_skills = profile.get("skills", ["Power Platform", "SQL", "Excel"])
+        all_roles = profile.get("target_roles", [])
+        all_skills = profile.get("skills", [])
+        all_locations = profile.get("preferred_locations", [])
 
-        # Rotate which roles/skills are emphasized based on the day of year,
-        # so the query set (and therefore the result pool) actually changes
-        # day to day instead of being identical on every run.
+        if not all_roles:
+            print("[JobSearch] No target_roles in profile — refusing to run with empty query set.")
+            return []
+
+        # Build the location clause
+        if all_locations:
+            loc_parts = " OR ".join(f'"{l}"' for l in all_locations[:6])
+            loc_clause = f"({loc_parts})"
+        else:
+            loc_clause = '"Remote" OR "Work From Home"'
+
+        # Build the negative clause from anti_targets and preferences
+        negatives = []
+        for kw in profile.get("anti_targets", []):
+            negatives.append(f"-{kw}")
+        if not profile.get("open_to_internship", False):
+            negatives.append("-Intern")
+        neg_clause = " ".join(negatives) if negatives else ""
+
+        # Rotate roles/skills day-to-day so the result pool actually changes
         day_offset = date.today().toordinal()
         roles = _rotate(all_roles, min(4, len(all_roles)), day_offset)
         skills = _rotate(all_skills, min(4, len(all_skills)), day_offset + 1)
 
         role_clause = " OR ".join([f'"{r}"' for r in roles[:4]])
         skill_clause = " OR ".join([f'"{s}"' for s in skills[:4]])
-        negatives = '-Intern -Director -VP -Head'
 
-        queries = [
-            f'{ATS_DOMAINS} intitle:({role_clause}) {LOCATIONS} {negatives}',
-            f'{ATS_DOMAINS} ({role_clause}) ({skill_clause}) {LOCATIONS} {negatives}',
-        ]
+        queries = []
 
-        # One query per individual top skill, broadened beyond the ATS-only
-        # domain restriction, to pull in postings the tight query misses.
-        # Aggregator search/listing pages are excluded explicitly since
-        # without a site: restriction they otherwise dominate results.
-        for skill in skills[:2]:
+        # ATS-only queries (highest precision)
+        queries.append(
+            f"{ATS_DOMAINS} intitle:({role_clause}) {loc_clause} {neg_clause}".strip()
+        )
+        if skills:
             queries.append(
-                f'intitle:({role_clause}) "{skill}" {LOCATIONS} {negatives} {AGGREGATOR_EXCLUSIONS}'
+                f"{ATS_DOMAINS} ({role_clause}) ({skill_clause}) {loc_clause} {neg_clause}".strip()
             )
+
+        # Broadened skill queries (include non-ATS sites, exclude aggregators)
+        broadened = f"intitle:({role_clause}) ({skill_clause}) {loc_clause} {neg_clause} {AGGREGATOR_EXCLUSIONS}"
+        if not profile.get("open_to_training_programs", False):
+            broadened += f" {TRAINING_EXCLUSIONS}"
+        queries.append(broadened.strip())
+
+        if config.DEBUG_SEARCH:
+            for q in queries[:MAX_QUERIES]:
+                print(f"[JobSearch] Query: {q}")
 
         return queries[:MAX_QUERIES]
 
     def _search(self, query: str, start: int = 0) -> list[dict]:
+        gl = _infer_country_gl(self)
+        params = {
+            "engine": "google", "q": query,
+            "api_key": self.api_key,
+            "gl": gl, "hl": "en",
+            "num": 15, "start": start,
+        }
         url = "https://www.searchapi.io/api/v1/search"
-        params = {"engine": "google", "q": query, "api_key": self.api_key, "gl": "in", "hl": "en", "num": 15, "start": start}
         res = requests.get(url, params=params, timeout=15)
         if res.status_code in [401, 404]:
             url = "https://serpapi.com/search.json"
-            params = {"engine": "google", "q": query, "api_key": self.api_key, "gl": "in", "hl": "en", "start": start}
+            params = {"engine": "google", "q": query, "api_key": self.api_key,
+                      "gl": gl, "hl": "en", "start": start}
             res = requests.get(url, params=params, timeout=15)
         if res.status_code != 200:
             return []
@@ -206,42 +313,52 @@ class JobSearchEngine:
 
     def fetch_jobs(self, profile: dict) -> list[dict]:
         queries = self._build_queries(profile)
+        if not queries:
+            return []
+
         all_jobs = []
         seen = set()
+
         for query in queries:
             for page in range(PAGES_PER_QUERY):
                 results = self._search(query, start=page * 10)
                 if not results:
-                    break  # no more pages for this query
+                    break
                 for item in results:
                     link = item.get("link", "")
                     if not link or link in seen:
                         continue
                     if not is_specific_job_link(link):
-                        # Aggregator search/listing page (e.g. Indeed's
-                        # "Power Automate jobs in Noida" results page)
-                        # rather than a single job posting — skip it
-                        # entirely, don't even spend a fetch on it.
                         seen.add(link)
                         continue
-                    raw_title = item.get("title", "")
-                    title = re.sub(r"\s*[-|–]\s*(Greenhouse|Lever|Workday|Ashby|SmartRecruiters|Jobs|Careers).*", "", raw_title, flags=re.IGNORECASE).strip()
-                    company = clean_company_name(item.get("source", ""), link)
+
+                    title = item.get("title", "")
                     snippet = item.get("snippet", "")
+
+                    # Training filter
+                    if is_training_url(link) or is_training_title(title) or is_training_content(title, snippet):
+                        seen.add(link)
+                        continue
+
                     seen.add(link)
+                    raw_title = re.sub(
+                        r"\s*[-|–]\s*(Greenhouse|Lever|Workday|Ashby|SmartRecruiters|Jobs|Careers).*",
+                        "", title, flags=re.IGNORECASE,
+                    ).strip()
 
                     full_text = fetch_full_jd(link)
                     jd_text = full_text if full_text else snippet
 
                     all_jobs.append({
                         "job_id": link,
-                        "title": title,
-                        "company_name": company,
+                        "title": raw_title,
+                        "company_name": clean_company_name(item.get("source", ""), link),
                         "description": jd_text,
                         "apply_link": link,
-                        "location": extract_location(title, jd_text),
+                        "location": extract_location(raw_title, jd_text),
                         "salary_range_lpa": extract_salary_lpa(jd_text),
                         "experience_range_years": extract_experience_years(jd_text),
                         "used_full_jd": bool(full_text),
                     })
+
         return all_jobs

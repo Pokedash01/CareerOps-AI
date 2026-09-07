@@ -1,0 +1,10 @@
+{
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "functions": {
+    "app/api/generate/route.ts": {
+      "memory": 1024,
+      "maxDuration": 90
+    }
+  }
+}

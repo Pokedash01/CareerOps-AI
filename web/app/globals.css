@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.card {
+  @apply bg-white rounded-lg border border-navy-100 shadow-sm;
+}
+
+.btn-primary {
+  @apply bg-navy-800 text-white px-4 py-2 rounded-md text-sm font-medium
+         hover:bg-navy-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-ghost {
+  @apply text-navy-600 px-3 py-1.5 rounded-md text-sm
+         hover:bg-navy-50 transition-colors;
+}
+
+.score-good { @apply bg-emerald-100 text-emerald-700; }
+.score-mid  { @apply bg-amber-100  text-amber-700;  }
+.score-bad  { @apply bg-red-50     text-red-600;    }
