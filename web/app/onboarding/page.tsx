@@ -96,12 +96,15 @@ export default async function OnboardingPage() {
 
         <section className="card p-5">
           <h2 className="text-xs uppercase tracking-wider text-navy-500 font-semibold mb-3">How to update your preferences</h2>
-          <ol className="space-y-2 text-sm text-navy-700 list-decimal pl-5">
-            <li>Open the Telegram bot conversation.</li>
-            <li>Send <code className="bg-navy-50 px-1 rounded">/start</code> or your resume PDF if you have not already.</li>
-            <li>Reply to each question the bot asks. Use commas to separate list items (e.g. <code>Delhi, Remote, Bangalore</code>).</li>
-            <li>When you see the profile review card, tap <strong>✅ Confirm</strong> to save, or <strong>✏️ Edit</strong> to change a field.</li>
-          </ol>
+          <p className="text-sm text-navy-700 mb-3">
+            You can edit all preference fields in the dashboard — no need to chat with the bot.
+            Changes save to your profile instantly.
+          </p>
+          <a href="/settings" className="btn-primary inline-block text-sm">Edit Preferences →</a>
+          <p className="text-xs text-navy-400 mt-3">
+            Or update via Telegram: open the bot, send <code className="bg-navy-50 px-1 rounded">/start</code> or your resume PDF,
+            and reply to the questions.
+          </p>
         </section>
       </div>
     </main>

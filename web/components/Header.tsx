@@ -11,6 +11,7 @@ export default function Header() {
             <NavLink href="/profile">Profile</NavLink>
             <NavLink href="/jobs">Jobs</NavLink>
             <NavLink href="/onboarding">Onboarding</NavLink>
+            <NavLink href="/settings">Settings</NavLink>
           </nav>
         </div>
         <span className="text-xs text-navy-400">Pipeline runs every 4h</span>

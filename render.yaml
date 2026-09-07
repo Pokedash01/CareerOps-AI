@@ -1,0 +1,21 @@
+# render.yaml — Render.com zero-config deployment
+# Place this file in the repo root. Render auto-detects it.
+services:
+  - type: web
+    name: careerops-bot
+    region: singapore
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python long_poll_server.py
+    healthCheckPath: /
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: GITHUB_REPOSITORY
+        value: Pokedash01/CareerOps-AI
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SERPAPI_KEY
+        sync: false

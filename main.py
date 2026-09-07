@@ -1,6 +1,11 @@
 """
 CareerOps pipeline entry point.
 
+Two modes:
+  --mode full        : inbox + job search + matching (slow, runs every 4h)
+  --mode poll-only   : inbox only (fast, runs every 5 min via Actions)
+  --mode long-poll   : inbox in a loop with 2s sleep (instant, runs on a server)
+
 Runs as a GitHub Action every 4 hours. Two phases:
 1. process_telegram_inbox() — pull new updates, route to onboarding
    handler or resume-upload handler.
@@ -11,6 +16,7 @@ Runs as a GitHub Action every 4 hours. Two phases:
 import os
 import json
 import hashlib
+import time
 import requests
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -323,10 +329,40 @@ def run_match_pipeline(bot: TelegramSaaSClient, state: dict):
             print(f"[Pipeline] Skipped {skipped_recent} listing(s) evaluated within the last {SEEN_JOB_TTL_DAYS} days.")
 
 
+def long_poll_loop(bot: TelegramSaaSClient, poll_interval: int = 2):
+    """Run the inbox poll in a tight loop with short sleeps. Use this
+    on a long-running server (Render/Railway) for instant responses."""
+    print(f"[Long-Poll] Starting — checking Telegram every {poll_interval}s")
+    while True:
+        try:
+            state = load_state()
+            inject_save_fn(save_state)
+            process_telegram_inbox(bot, state)
+            save_state(state)
+        except Exception as e:
+            print(f"[Long-Poll] Error in cycle: {e}")
+        time.sleep(poll_interval)
+
+
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", default="full",
+                        choices=["full", "poll-only", "long-poll"],
+                        help="'full' = inbox + matching; 'poll-only' = inbox once; "
+                             "'long-poll' = inbox in a loop (instant)")
+    args = parser.parse_args()
+
     tg_bot = TelegramSaaSClient()
     pipeline_state = load_state()
     inject_save_fn(save_state)
-    process_telegram_inbox(tg_bot, pipeline_state)
-    run_match_pipeline(tg_bot, pipeline_state)
-    save_state(pipeline_state)
+
+    if args.mode == "long-poll":
+        long_poll_loop(tg_bot, poll_interval=2)
+    else:
+        process_telegram_inbox(tg_bot, pipeline_state)
+        save_state(pipeline_state)
+
+        if args.mode == "full":
+            run_match_pipeline(tg_bot, pipeline_state)
+            save_state(pipeline_state)
