@@ -199,7 +199,7 @@ function MetricCard({
 }: {
   label: string;
   value: string | number;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: string | number; className?: string }>;
   color: keyof typeof ICON_COLORS;
   caption: string;
   isText?: boolean;
