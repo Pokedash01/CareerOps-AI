@@ -1,5 +1,5 @@
 {
-  "telegram_offset": 384138491,
+  "telegram_offset": 384138495,
   "seen_jobs": {
     "28c93ff3c4636d86": "2026-09-04T12:49:22.399028+00:00",
     "203e22fe26fa7f53": "2026-09-04T12:49:22.399028+00:00",
@@ -228,5 +228,21 @@
     "28478567d3c8c9ce",
     "31433b0cbd312d65",
     "6af264d877c3e8bc"
-  ]
+  ],
+  "onboarding": {
+    "1368681854": {
+      "stage": "asking",
+      "queue": [
+        "preferred_locations",
+        "target_roles",
+        "anti_targets",
+        "salary_expectation",
+        "open_to_internship"
+      ],
+      "answers": {},
+      "message_id": 523,
+      "editing_field": null,
+      "last_seen_update": "2026-09-07T16:12:35.630153+00:00"
+    }
+  }
 }
