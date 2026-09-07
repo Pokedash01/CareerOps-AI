@@ -1,6 +1,7 @@
 {
   "framework": "nextjs",
   "regions": ["iad1"],
+  "outputDirectory": ".next",
   "functions": {
     "app/api/generate/route.ts": {
       "memory": 1024,
