@@ -8,6 +8,24 @@ import src.config as config
 ATS_DOMAINS = "(site:myworkdayjobs.com OR site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com OR site:smartrecruiters.com)"
 LOCATIONS = '("Gurgaon" OR "Gurugram" OR "Noida" OR "Delhi" OR "Bangalore" OR "Bengaluru" OR "Remote" OR "India")'
 
+# Aggregator/listing sites that show up as strong organic results for
+# broad (non site:-restricted) queries but return a *search results page*
+# rather than a single job posting. Excluded from the broadened query and
+# also checked again as a post-filter belt-and-braces measure below.
+AGGREGATOR_EXCLUSIONS = (
+    "-site:indeed.com -site:in.indeed.com -site:naukri.com -site:linkedin.com "
+    "-site:glassdoor.com -site:glassdoor.co.in -site:shine.com -site:timesjobs.com "
+    "-site:foundit.in -site:monsterindia.com -site:instahyre.com"
+)
+
+_LISTING_PAGE_MARKERS = re.compile(
+    r"(indeed\.[a-z.]+/(jobs|q-)|naukri\.com/[\w-]*-jobs(-in-[\w-]+)?(?:/|\?|$)|"
+    r"linkedin\.com/jobs/search|glassdoor\.co\.?in/Job/|glassdoor\.com/Job/|"
+    r"shine\.com/job-search|timesjobs\.com/job-search|foundit\.in/search|"
+    r"monsterindia\.com/search)",
+    re.IGNORECASE,
+)
+
 # How many distinct queries to run per pipeline execution, and how many
 # result pages (10 results each) to pull per query. Raising these widens
 # the pool but costs more SerpAPI/searchapi credits per run.
@@ -45,6 +63,24 @@ def clean_company_name(raw_name: str, url: str) -> str:
         pass
     cleaned = re.sub(r"(pvt|ltd|services|consulting|technologies).*", "", raw_name, flags=re.IGNORECASE)
     return cleaned.strip().title() or raw_name
+
+
+def is_specific_job_link(url: str) -> bool:
+    """Reject links that point at an aggregator's search/listing page
+    rather than a single job posting. This is a safety net in addition
+    to the -site: exclusions baked into the query itself, since Google
+    doesn't always honor those perfectly (especially combined with
+    intitle:), and an ATS domain could in principle also expose a
+    public search view."""
+    if not url:
+        return False
+    if _LISTING_PAGE_MARKERS.search(url):
+        return False
+    # Generic guard: a bare keyword-search query string on a non-ATS
+    # domain is almost always a listing page, not a job posting.
+    if re.search(r"[?&](q|k|keywords)=", url, re.IGNORECASE) and "myworkdayjobs" not in url.lower():
+        return False
+    return True
 
 
 def fetch_full_jd(url: str, timeout: int = 10) -> str:
@@ -147,8 +183,12 @@ class JobSearchEngine:
 
         # One query per individual top skill, broadened beyond the ATS-only
         # domain restriction, to pull in postings the tight query misses.
+        # Aggregator search/listing pages are excluded explicitly since
+        # without a site: restriction they otherwise dominate results.
         for skill in skills[:2]:
-            queries.append(f'intitle:({role_clause}) "{skill}" {LOCATIONS} {negatives}')
+            queries.append(
+                f'intitle:({role_clause}) "{skill}" {LOCATIONS} {negatives} {AGGREGATOR_EXCLUSIONS}'
+            )
 
         return queries[:MAX_QUERIES]
 
@@ -176,6 +216,13 @@ class JobSearchEngine:
                 for item in results:
                     link = item.get("link", "")
                     if not link or link in seen:
+                        continue
+                    if not is_specific_job_link(link):
+                        # Aggregator search/listing page (e.g. Indeed's
+                        # "Power Automate jobs in Noida" results page)
+                        # rather than a single job posting — skip it
+                        # entirely, don't even spend a fetch on it.
+                        seen.add(link)
                         continue
                     raw_title = item.get("title", "")
                     title = re.sub(r"\s*[-|–]\s*(Greenhouse|Lever|Workday|Ashby|SmartRecruiters|Jobs|Careers).*", "", raw_title, flags=re.IGNORECASE).strip()
