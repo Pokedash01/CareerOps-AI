@@ -4,6 +4,10 @@ import { useState, useEffect } from "react";
 import { Check, X, Save, Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 
+function parseTags(raw: string): string[] {
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 const PREFERENCE_FIELDS = [
   {
     key: "preferred_locations",
@@ -92,10 +96,6 @@ export default function SettingsPage() {
     }
     load();
   }, []);
-
-  function parseTags(raw: string): string[] {
-    return raw.split(",").map((s) => s.trim()).filter(Boolean);
-  }
 
   async function handleSave() {
     setSaveState("saving");
