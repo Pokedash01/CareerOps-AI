@@ -72,7 +72,9 @@
   ],
   "target_roles": [],
   "anti_targets": [],
-  "preferred_locations": [],
+  "preferred_locations": [
+    "/start"
+  ],
   "salary_expectation": null,
   "open_to_internship": false,
   "open_to_training_programs": false
