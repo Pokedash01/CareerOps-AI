@@ -14,7 +14,7 @@ const CHAT_ID = process.env.DASHBOARD_CHAT_ID || "1368681854";
 async function fetchJSON<T>(path: string): Promise<T | null> {
   const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/${path}`;
   try {
-    const res = await fetch(url, { next: { revalidate: 300 } });
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     return res.json() as Promise<T>;
   } catch {

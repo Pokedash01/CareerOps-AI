@@ -13,9 +13,13 @@ services:
         sync: false
       - key: GITHUB_REPOSITORY
         value: Pokedash01/CareerOps-AI
+      - key: GITHUB_TOKEN
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: SERPAPI_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
         sync: false

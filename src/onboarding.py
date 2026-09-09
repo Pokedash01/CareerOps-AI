@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 from datetime import datetime, timezone
 from src.profiler import missing_fields, REQUIRED_PREFERENCE_FIELDS
+from src.github_sync import sync_profile_to_github
 
 
 # Reference to the main pipeline's save_state function, injected on import
@@ -140,6 +141,11 @@ def _handle_callback(bot, state: dict, chat_id: str, callback_data: str) -> bool
             "for every high-fit role.",
             reply_markup=None,
         )
+        # Sync the onboarding state to GitHub so the web dashboard sees it immediately
+        try:
+            sync_profile_to_github(chat_id, _load_full_profile(chat_id))
+        except Exception as e:
+            print(f"[Onboarding] GitHub sync for profile after confirm failed: {e}")
         _persist(state)
         return True
 
@@ -187,6 +193,13 @@ def _handle_answer(bot, state: dict, chat_id: str, text: str) -> bool:
         return True
 
     _save_profile_field(chat_id, field, value)
+    # Sync the updated profile to GitHub so the web dashboard sees it immediately
+    try:
+        profile = _load_full_profile(chat_id)
+        sync_profile_to_github(chat_id, profile)
+    except Exception as e:
+        print(f"[Onboarding] GitHub sync for profile failed: {e}")
+
     user_state["answers"][field] = value
     user_state["queue"].pop(0)
 

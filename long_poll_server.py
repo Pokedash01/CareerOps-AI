@@ -22,6 +22,7 @@ from main import (
     process_telegram_inbox,
     inject_save_fn,
 )
+from src.github_sync import sync_state_to_github
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -51,6 +52,11 @@ def telegram_loop(bot: TelegramSaaSClient, poll_interval: int = 2):
             inject_save_fn(save_state)
             process_telegram_inbox(bot, state)
             save_state(state)
+            # Sync state to GitHub so the web dashboard sees updates immediately
+            try:
+                sync_state_to_github(state)
+            except Exception as e:
+                print(f"[Bot] GitHub state sync failed: {e}")
         except Exception as e:
             print(f"[Bot] Error in cycle: {e}")
         time.sleep(poll_interval)
