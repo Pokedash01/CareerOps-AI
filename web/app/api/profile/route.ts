@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Read existing profile.json from GitHub
     let existingProfile: Record<string, unknown> = {};
+    let profileSha: string | undefined;
     try {
       const { data } = await octokit.repos.getContent({
         owner, repo: repoName, path: `data/users/${chatId}/profile.json`, branch: "main",
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
         typeof data.content === "string"
       ) {
         existingProfile = JSON.parse(Buffer.from(data.content, "base64").toString("utf-8"));
+        profileSha = data.sha;
       }
     } catch {
       // File doesn't exist yet — that's fine, we create it
@@ -42,27 +44,20 @@ export async function POST(req: NextRequest) {
     const content = Buffer.from(JSON.stringify(updatedProfile, null, 2)).toString("base64");
     const filePath = `data/users/${chatId}/profile.json`;
 
-    try {
-      await octokit.repos.createOrUpdateFileContents({
-        owner, repo: repoName, path: filePath,
-        message: `chore: update profile preferences via dashboard`,
-        content,
-        branch: "main",
-      });
-    } catch (e) {
-      // If file didn't exist, create it
-      await octokit.repos.createOrUpdateFileContents({
-        owner, repo: repoName,
-        path: filePath,
-        message: `chore: create profile via dashboard`,
-        content,
-        branch: "main",
-      });
-    }
+    await octokit.repos.createOrUpdateFileContents({
+      owner, repo: repoName, path: filePath,
+      message: profileSha
+        ? `chore: update profile preferences via dashboard`
+        : `chore: create profile via dashboard`,
+      content,
+      branch: "main",
+      ...(profileSha ? { sha: profileSha } : {}),
+    });
 
     // 4. Mark those fields as answered in onboarding state
     // Read state.json, remove the answered fields from onboarding queue, mark stage=done
     let stateContent: Record<string, unknown> = {};
+    let stateSha: string | undefined;
     try {
       const { data } = await octokit.repos.getContent({
         owner, repo: repoName, path: "data/state.json", branch: "main",
@@ -75,6 +70,7 @@ export async function POST(req: NextRequest) {
         typeof data.content === "string"
       ) {
         stateContent = JSON.parse(Buffer.from(data.content, "base64").toString("utf-8"));
+        stateSha = data.sha;
       }
     } catch {
       // state.json doesn't exist — create basic structure
@@ -101,20 +97,14 @@ export async function POST(req: NextRequest) {
     stateContent.onboarding = onboarding;
 
     const stateEncoded = Buffer.from(JSON.stringify(stateContent, null, 2)).toString("base64");
-    try {
-      await octokit.repos.createOrUpdateFileContents({
-        owner, repo: repoName, path: "data/state.json",
-        message: "chore: update onboarding state via dashboard",
-        content: stateEncoded, branch: "main",
-      });
-    } catch {
-      // state.json may not exist — try to create
-      await octokit.repos.createOrUpdateFileContents({
-        owner, repo: repoName, path: "data/state.json",
-        message: "chore: create state.json via dashboard",
-        content: stateEncoded, branch: "main",
-      });
-    }
+    await octokit.repos.createOrUpdateFileContents({
+      owner, repo: repoName, path: "data/state.json",
+      message: stateSha
+        ? "chore: update onboarding state via dashboard"
+        : "chore: create state.json via dashboard",
+      content: stateEncoded, branch: "main",
+      ...(stateSha ? { sha: stateSha } : {}),
+    });
 
     return NextResponse.json({ ok: true, profile: updatedProfile, onboardingStage: userOnb.stage });
   } catch (err) {

@@ -46,13 +46,31 @@ export async function POST(req: NextRequest) {
     if (b64) {
       const octokit = new Octokit({ auth: githubToken });
       const pdfBuffer = Buffer.from(b64, "base64");
+      let fileSha: string | undefined;
+      try {
+        const { data } = await octokit.repos.getContent({
+          owner,
+          repo: repoName,
+          path: filePath,
+          branch: "main",
+        });
+        if (data && !Array.isArray(data) && data.type === "file") {
+          fileSha = data.sha;
+        }
+      } catch {
+        // File doesn't exist yet — create it
+      }
+
       await octokit.repos.createOrUpdateFileContents({
         owner,
         repo: repoName,
         path: filePath,
-        message: `feat: Add tailored resume for ${company}`,
+        message: fileSha
+          ? `feat: Update tailored resume for ${company}`
+          : `feat: Add tailored resume for ${company}`,
         content: pdfBuffer.toString("base64"),
         branch: "main",
+        ...(fileSha ? { sha: fileSha } : {}),
       });
     }
 
