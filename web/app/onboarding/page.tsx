@@ -8,7 +8,8 @@ import {
   CHAT_ID,
 } from "@/lib/github";
 
-export const revalidate = 300;
+// Always render fresh — onboarding status must reflect real-time state
+export const dynamic = "force-dynamic";
 
 const ALL_PREFERENCE_FIELDS = [
   { key: "preferred_locations", label: "Preferred locations" },

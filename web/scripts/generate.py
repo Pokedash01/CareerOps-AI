@@ -42,7 +42,7 @@ def llm_generate(prompt: str, system_prompt: str) -> dict:
     if GEMINI_KEY:
         import google.genai as genai
         genai.configure(api_key=GEMINI_KEY)
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-3.8-flash")
         response = model.generate_content(
             [{"text": system_prompt}, {"text": prompt}],
             generation_config={"temperature": 0.2, "response_mime_type": "application/json"},
