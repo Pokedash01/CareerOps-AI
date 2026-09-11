@@ -231,10 +231,8 @@
   ],
   "onboarding": {
     "1368681854": {
-      "stage": "asking",
-      "queue": [
-        "salary_expectation"
-      ],
+      "stage": "done",
+      "queue": [],
       "answers": {
         "preferred_locations": [
           "/start"
