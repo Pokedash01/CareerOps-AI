@@ -231,16 +231,15 @@
   ],
   "onboarding": {
     "1368681854": {
-      "stage": "done",
-      "queue": [],
-      "answers": {
-        "preferred_locations": [
-          "/start"
-        ]
-      },
-      "message_id": 523,
+      "stage": "asking",
+      "queue": [
+        "anti_targets",
+        "open_to_internship"
+      ],
+      "answers": {},
+      "message_id": 600,
       "editing_field": null,
-      "last_seen_update": "2026-09-07T16:12:35.630153+00:00"
+      "last_seen_update": "2026-09-11T12:46:04.878461+00:00"
     }
   }
 }
