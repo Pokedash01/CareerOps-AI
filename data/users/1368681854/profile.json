@@ -70,7 +70,11 @@
     "Oracle: Agentic AI Certified Foundations Associate",
     "Microsoft Certified: AI Business Professional (AB-730)"
   ],
-  "target_roles": [],
+  "target_roles": [
+    "Data Analyst",
+    "Business Analyst",
+    "Product Analyst"
+  ],
   "anti_targets": [],
   "preferred_locations": [
     "Delhi",
@@ -79,7 +83,10 @@
     "Noida",
     "Remote"
   ],
-  "salary_expectation": null,
+  "salary_expectation": {
+    "min_lpa": 12,
+    "max_lpa": 82
+  },
   "open_to_internship": false,
   "open_to_training_programs": false
 }
