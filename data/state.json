@@ -233,10 +233,7 @@
     "1368681854": {
       "stage": "asking",
       "queue": [
-        "target_roles",
-        "anti_targets",
-        "salary_expectation",
-        "open_to_internship"
+        "salary_expectation"
       ],
       "answers": {
         "preferred_locations": [
