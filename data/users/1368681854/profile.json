@@ -75,7 +75,9 @@
     "Business Analyst",
     "Product Analyst"
   ],
-  "anti_targets": [],
+  "anti_targets": [
+    "None"
+  ],
   "preferred_locations": [
     "Delhi",
     "Gurugram",
