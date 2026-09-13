@@ -231,11 +231,8 @@
   ],
   "onboarding": {
     "1368681854": {
-      "stage": "asking",
-      "queue": [
-        "anti_targets",
-        "open_to_internship"
-      ],
+      "stage": "done",
+      "queue": [],
       "answers": {},
       "message_id": 600,
       "editing_field": null,
