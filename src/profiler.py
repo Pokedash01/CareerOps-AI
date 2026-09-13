@@ -66,7 +66,6 @@ then ask the user for the missing field via Telegram.
 REQUIRED_PREFERENCE_FIELDS = (
     "preferred_locations",
     "target_roles",
-    "anti_targets",
     "salary_expectation",
     "open_to_internship",
 )

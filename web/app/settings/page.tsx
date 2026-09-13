@@ -149,7 +149,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-bold text-white">Job Preferences</h1>
           <p className="text-sm text-gray-400 mt-1">
             Set your preferences here — the Telegram bot will skip these questions.
-            Changes take effect on the next pipeline run.
+            Changes sync to GitHub and take effect immediately.
           </p>
         </div>
 
@@ -203,7 +203,7 @@ export default function SettingsPage() {
           )}
           {saveState === "idle" && (
             <span className="text-xs text-gray-500">
-              Saved preferences sync to Telegram — next pipeline run uses these values.
+              Saved preferences sync to GitHub instantly. Run the pipeline now to see matches.
             </span>
           )}
         </div>

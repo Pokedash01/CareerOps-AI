@@ -5,8 +5,9 @@ import {
   MapPin, TrendingUp, FileText, Zap,
 } from "lucide-react";
 import { getProfile, getMatchedJobs, getPipelineState, isOnboardingComplete } from "@/lib/github";
+import PipelineTriggerButton from "./PipelineTriggerButton";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const [profile, jobs, state, complete] = await Promise.all([
@@ -67,8 +68,8 @@ export default async function DashboardPage() {
             <span className="text-gray-500">Last run:</span>
             <span className="text-white font-medium">{lastRunTime}</span>
           </div>
-          <div className="ml-auto text-xs text-gray-500">
-            Next sync in <span className="text-white font-mono">~3h 42m</span>
+          <div className="ml-auto flex items-center gap-2">
+            <PipelineTriggerButton />
           </div>
         </section>
 

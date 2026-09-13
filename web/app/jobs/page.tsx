@@ -8,7 +8,7 @@ import GenerateButton from "./GenerateButton";
 import { getMatchedJobs, getProfile } from "@/lib/github";
 import { JobMatch } from "@/lib/types";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function JobsPage() {
   const [jobs, profile] = await Promise.all([getMatchedJobs(), getProfile()]);

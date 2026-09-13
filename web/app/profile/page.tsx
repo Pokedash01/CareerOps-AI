@@ -3,7 +3,7 @@ import { Mail, Phone, MapPin, Briefcase, GraduationCap, Award, Settings } from "
 import Header from "@/components/Header";
 import { getProfile } from "@/lib/github";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function ProfilePage() {
   const profile = await getProfile();
